@@ -78,18 +78,25 @@ public:
   virtual void f(const DomainType& x,
                  RangeType& phi) const
   {
-    const double at = 2.0;
-    // const double apt = 0.0;
-    const double t = time();
+    // define evolution of surface
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double apt = 0.25 * cos( time() );
 
-
-    const double H = ( 2.0 * x[0] * x[0] + at * ( 1 + at ) * ( x[1]*x[1] + x[2]*x[2] ) )
-      / ( sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] ) * ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) ) );
+    // calculated surface parameters
+    const double divGammaV = 0.5 * at * apt * ( x[1]*x[1] + x[2]*x[2] ) / ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) );
     const double N1 = 1/at * x[0] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
     const double N2 = x[1] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
-    const double mlapu = 2.0 * N1 * N2 + H * ( x[1] * N1 + x[0] * N2 );
+    const double H = ( 2.0 * x[0] * x[0] + at * ( 1 + at ) * ( x[1]*x[1] + x[2]*x[2] ) )
+      / ( sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] ) * ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) ) );
 
-    phi = x[0]*x[1] * cos( t ) + sin( t ) * mlapu;
+
+    // calculate solution and derivatives
+    const double ux = sin( time() ) * x[0] * x[1];
+    const double mdux = ( cos( time() ) + 0.5 * sin( time() ) * apt / at ) * x[0] * x[1];
+    const double mlapux = sin( time() ) * (  2.0 * N1 * N2 + H * ( x[1] * N1 + x[0] * N2 ) );
+
+    // construct solution
+    phi = mdux + divGammaV * ux + mlapux;
   }
 
   //! the exact solution
