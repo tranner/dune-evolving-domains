@@ -43,6 +43,16 @@
 
 #include "temporalprobleminterface.hh"
 
+double Power( const double y, const int a )
+{
+  assert( a >= 0 );
+
+  if( a == 0 )
+    return y;
+
+  return y * Power( y, a-1 );
+}
+
 template <class FunctionSpace> 
 class TimeDependentCosinusProduct : public TemporalProblemInterface < FunctionSpace >
 {
@@ -68,11 +78,18 @@ public:
   virtual void f(const DomainType& x,
                  RangeType& phi) const
   {
-    // const double at = 1.0;
+    const double at = 2.0;
     // const double apt = 0.0;
     const double t = time();
 
-    phi = x[0]*x[1] * ( cos( t ) + 6 * sin( t ) );
+
+    const double H = ( 2.0 * x[0] * x[0] + at * ( 1 + at ) * ( x[1]*x[1] + x[2]*x[2] ) )
+      / ( sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] ) * ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) ) );
+    const double N1 = 1/at * x[0] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
+    const double N2 = x[1] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
+    const double mlapu = 2.0 * N1 * N2 + H * ( x[1] * N1 + x[0] * N2 );
+
+    phi = x[0]*x[1] * cos( t ) + sin( t ) * mlapu;
   }
 
   //! the exact solution
