@@ -63,7 +63,7 @@ struct DeformationCoordFunction
 
     y[ 0 ] = x[ 0 ] * sqrt(at);
     y[ 1 ] = x[ 1 ];
-    y[ 2 ] = x[ 2 ];
+    y[ 2 ] = x[ 2 ] + 0.25 * sin( time_ ) * ( 1 - x[ 2 ] );
   }
 
   void setTime ( const double time ) { time_ = time; }
