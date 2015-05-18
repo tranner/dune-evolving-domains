@@ -146,6 +146,36 @@ struct HeatModel : protected DiffusionModel<FunctionSpace,GridPart>
     flux  = gradient;
     flux *= timeStepFactor_ * timeProvider_.deltaT();
   }
+
+  //! return the boundary flux
+  template< class Entity, class Point >
+  void boundaryFlux( const Entity &entity,
+		     const Point &x,
+		     const RangeType &value,
+		     RangeType &flux ) const
+  {
+    flux = RangeType( 0 );
+    if( !implicit_ )
+      {
+	const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
+	RangeType neumannRhs;
+	problem_.boundaryRhs( xGlobal, neumannRhs );
+	neumannRhs *= timeProvider_.deltaT();
+	flux += neumannRhs;
+      }
+  }
+
+  //! return the boundary flux
+  template< class Entity, class Point >
+  void linBoundaryFlux( const RangeType& uBar,
+                   const Entity &entity,
+                   const Point &x,
+                   const RangeType &value,
+                   RangeType &flux ) const
+  {
+    flux = RangeType( 0 );
+  }
+
   //! exact some methods from the problem class
   bool hasDirichletBoundary () const 
   {

@@ -99,6 +99,12 @@ public:
     phi = mdux + divGammaV * ux + mlapux;
   }
 
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    value = 0.1;
+  }
+
   //! the exact solution
   virtual void u(const DomainType& x,
                  RangeType& phi) const

@@ -72,7 +72,11 @@ protected:
   typedef typename DiscreteFunctionSpaceType::DomainType DomainType; 
 
   typedef typename DiscreteFunctionSpaceType::GridPartType  GridPartType;
+  typedef typename GridPartType::IntersectionIteratorType IntersectionIteratorType;
+  typedef typename IntersectionIteratorType::Intersection IntersectionType;
+  typedef typename IntersectionType::Geometry  IntersectionGeometryType;
 
+  typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
   typedef Dune::Fem::CachingQuadrature< GridPartType, 0 > QuadratureType;
 
   //! type of Dirichlet constraints 
@@ -136,7 +140,11 @@ protected:
   typedef typename DiscreteFunctionSpaceType :: DomainType DomainType; 
 
   typedef typename DiscreteFunctionSpaceType::GridPartType  GridPartType;
+  typedef typename GridPartType::IntersectionIteratorType IntersectionIteratorType;
+  typedef typename IntersectionIteratorType::Intersection IntersectionType;
+  typedef typename IntersectionType::Geometry  IntersectionGeometryType;
 
+  typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
   typedef typename BaseType::QuadratureType QuadratureType;
 
 public:
@@ -211,6 +219,44 @@ void EllipticOperator< DiscreteFunction, Model >
         wLocal.axpy( quadrature[ pt ], avu, adu );
         //! [Compute local contribution of operator]
       }
+
+      // boundary integral
+      const IntersectionIteratorType iitend = dfSpace.gridPart().iend( entity );
+      for( IntersectionIteratorType iit = dfSpace.gridPart().ibegin( entity );
+	     iit != iitend; ++iit ) // iterate over intersections
+	{
+	  const IntersectionType &intersection = *iit;
+
+	  if( intersection.boundary() )
+	    {
+#warning all boundaries have Neumann data
+	      if( 0 /* model().isDirichletIntersection( intersection ) -- all boundaries are neumann */ )
+		{
+		  continue;
+		}
+
+	      // find quadrature rule on intersection
+	      FaceQuadratureType quadInside( dfSpace.gridPart(), intersection, quadOrder, FaceQuadratureType :: INSIDE );
+	      const size_t numQuadraturePoints = quadInside.nop();
+
+	      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
+		{
+		  // find quadrature weight
+		  const double weight = quadInside.weight( pt );
+
+		  // evaluate boundary flux
+		  RangeType vu, avu;
+		  uLocal.evaluate( quadInside[ pt ], vu );
+		  model().boundaryFlux( entity, quadInside[ pt ], vu, avu );
+
+		  // multiply by quadrature weight
+		  avu *= weight;
+
+		  // add to local function
+		  wLocal.axpy( quadInside[ pt ], avu );
+		}
+	    }
+	}
     }
   }
 
@@ -288,6 +334,51 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
       }
       //! [Assembling the local matrix]
     }
+
+      // boundary integral
+      const IntersectionIteratorType iitend = dfSpace.gridPart().iend( entity );
+      for( IntersectionIteratorType iit = dfSpace.gridPart().ibegin( entity );
+	     iit != iitend; ++iit ) // iterate over intersections
+	{
+	  const IntersectionType &intersection = *iit;
+
+	  if( intersection.boundary() )
+	    {
+#warning all boundaries have Neumann data
+	      if( 0 /* model().isDirichletIntersection( intersection ) -- all boundaries are neumann */ )
+		{
+		  continue;
+		}
+
+	      // find quadrature rule on intersection
+	      FaceQuadratureType quadInside( dfSpace.gridPart(), intersection, 2*dfSpace.order(),
+					     FaceQuadratureType :: INSIDE );
+	      const size_t numQuadraturePoints = quadInside.nop();
+
+	      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
+		{
+		  // find quadrature weight
+		  const double weight = quadInside.weight( pt );
+
+		  // evaluate basis functions at quadrature point
+		  baseSet.evaluateAll( quadInside[ pt ], phi );
+
+		  // get value for linearization
+		  RangeType u0;
+		  uLocal.evaluate( quadInside[ pt ], u0 );
+
+		  RangeType aphi( 0 );
+		  for( unsigned int localCol = 0; localCol < numBasisFunctions; ++localCol )
+		    {
+		      // if boundary flux term is present
+		      model().linBoundaryFlux( u0, entity, quadInside[ pt ], phi[ localCol ], aphi );
+
+		      // get column object and call axpy method
+		      jLocal.column( localCol ).axpy( phi, aphi, weight );
+		    }
+		}
+	    }
+	}
   } // end grid traversal 
 
   // apply constraints to matrix operator 

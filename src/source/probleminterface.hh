@@ -72,7 +72,13 @@ public:
   {
     value = 0; 
   }
-  
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    value = 0;
+  }
+
   //! mass coefficient (default = 0)
   virtual void m(const DomainType& x, RangeType &m) const
   {
