@@ -1,5 +1,5 @@
 
-SUBDIRS =
+SUBDIRS = data output source
 
 noinst_PROGRAMS = dune_evolving_domains
 
