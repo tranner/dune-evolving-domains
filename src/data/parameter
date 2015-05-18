@@ -19,9 +19,9 @@ fem.timeprovider.factor: 1
 heat.timestep: 0.1
 heat.endtime: 1
 heat.theta: 0.5
-heat.level: 0     
+heat.level: 0
 heat.repeats: 5
-heat.reducetimestepfactor: 0.5
+heat.reducetimestepfactor: 0.25
 
 spiral.timestep: 0.01 # explicit rhs: 0.005
 spiral.endtime: 20.
