@@ -57,12 +57,18 @@ struct HeatScheme : public FemScheme<ImplicitModel>
   typedef ExplicitModel ExplicitModelType;
   typedef typename BaseType::FunctionSpaceType FunctionSpaceType;
   typedef typename BaseType::DiscreteFunctionType DiscreteFunctionType;
+
+  typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
+  typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
+
   HeatScheme( GridPartType &gridPart, 
               const ImplicitModelType& implicitModel,
               const ExplicitModelType& explicitModel )
   : BaseType(gridPart, implicitModel),
     explicitModel_(explicitModel),
-    explicitOperator_( explicitModel_, discreteSpace_ )
+    explicitOperator_( explicitModel_, discreteSpace_ ),
+    linftyl2Error_( 0 ),
+    l2h1Error_( 0 )
   {
   }
 
@@ -83,6 +89,30 @@ struct HeatScheme : public FemScheme<ImplicitModel>
      interpolation( explicitModel_.initialFunction(), solution_ );
   }
 
+  template< class GridExactSolution >
+  void closeTimestep( const GridExactSolution &exact, const double deltaT )
+  {
+    // find l2 error
+    L2NormType l2norm( gridPart_ );
+    const double l2Error = l2norm.distance( exact, solution_ );
+    linftyl2Error_ = std::max( linftyl2Error_, l2Error );
+
+    // find h1 error
+    H1NormType h1norm( gridPart_ );
+    const double h1Error = h1norm.distance( exact, solution_ );
+    l2h1Error_ = std::sqrt( l2h1Error_*l2h1Error_ + deltaT * h1Error * h1Error );
+  }
+
+  double linftyl2Error() const
+  {
+    return linftyl2Error_;
+  }
+
+  double l2h1Error() const
+  {
+    return l2h1Error_;
+  }
+
 private:
   using BaseType::gridPart_;
   using BaseType::discreteSpace_;
@@ -91,6 +121,9 @@ private:
   using BaseType::rhs_;
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs 
+
+  double linftyl2Error_;
+  double l2h1Error_;
 };
 
 #endif // end #if HEAT_FEMSCHEME_HH

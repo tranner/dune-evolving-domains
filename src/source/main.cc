@@ -130,15 +130,17 @@ double algorithm ( HGridType &grid, int step )
     scheme.solve(true);
     //! [Set the new time to move to new surface]
     dataOutput.write( timeProvider );
+    // finalise (compute errors)
+    scheme.closeTimestep( gridExactSolution, timeProvider.deltaT() );
   }
 
   // output final solution
   dataOutput.write( timeProvider );
 
-  // select norm for error computation
-  typedef Dune::Fem::L2Norm< GridPartType > NormType;
-  NormType norm( gridPart );
-  return norm.distance( gridExactSolution, scheme.solution() );
+  std::cout << "L^\\infty( L^2 ) error: " << scheme.linftyl2Error() << std::endl;
+  std::cout << "L^\\2( H^1 ) error:     " << scheme.l2h1Error() << std::endl;
+
+  return scheme.linftyl2Error();
 }
 
 // main
