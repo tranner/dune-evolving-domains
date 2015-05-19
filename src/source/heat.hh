@@ -102,7 +102,7 @@ public:
   virtual void boundaryRhs( const DomainType& x,
 			    RangeType& value ) const
   {
-    value = 0.1;
+    value = 0.0;
   }
 
   //! the exact solution
