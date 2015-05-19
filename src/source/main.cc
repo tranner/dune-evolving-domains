@@ -46,6 +46,10 @@
 // include output
 #include <dune/fem/io/file/dataoutput.hh>
 
+// include eoc output
+#include <dune/fem/misc/femeoc.hh>
+#include "gridwidth.hh"
+
 #warning DEFORMATION
 // include geometrty grid part
 #include <dune/fem/gridpart/geogridpart.hh>
@@ -60,7 +64,7 @@
 
 // assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class HGridType>
-double algorithm ( HGridType &grid, int step )
+void algorithm ( HGridType &grid, int step, const int eocId )
 {
   typedef Dune::Fem::FunctionSpace< double, double, HGridType::dimensionworld, 1 > FunctionSpaceType;
 
@@ -137,10 +141,16 @@ double algorithm ( HGridType &grid, int step )
   // output final solution
   dataOutput.write( timeProvider );
 
-  std::cout << "L^\\infty( L^2 ) error: " << scheme.linftyl2Error() << std::endl;
-  std::cout << "L^\\2( H^1 ) error:     " << scheme.l2h1Error() << std::endl;
+  // get errors
+  std::vector< double > store;
+  store.push_back( scheme.linftyl2Error() );
+  store.push_back( scheme.l2h1Error() );
+  Dune :: Fem :: FemEoc :: setErrors( eocId, store );
 
-  return scheme.linftyl2Error();
+  // write to file / output
+  const double h = EvolvingDomain :: GridWidth :: gridWidth( gridPart );
+  const int dofs = scheme.dofs();
+  Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
 }
 
 // main
@@ -161,6 +171,18 @@ try
 
   // append default parameter file
   Dune::Fem::Parameter::append( "../data/parameter" );
+
+  // initialzie eoc file
+  std::string eocOutPath = Dune::Fem::Parameter::getValue<std::string>("fem.eocOutPath", std::string("."));
+  Dune::Fem::FemEoc::initialize( eocOutPath, "eoc", "surface only" );
+
+  // add entries to eoc calculation
+  std::vector<std::string> femEocHeaders;
+  femEocHeaders.push_back("$L^\\infty( L^2 )$ error");
+  femEocHeaders.push_back("$L^2( H^1 )$ error");
+
+  // get eoc id
+  const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
   typedef Dune::GridSelector::GridType  HGridType ;
@@ -193,7 +215,7 @@ try
   Dune::Fem::GlobalRefine::apply( grid, level * refineStepsForHalf );
 
   // calculate first step
-  double oldError = algorithm( grid, (repeats > 0) ? 0 : -1 );
+  algorithm( grid, (repeats > 0) ? 0 : -1, eocId );
 
   for( int step = 1; step <= repeats; ++step )
   {
@@ -201,14 +223,7 @@ try
     // and all memory is adjusted correctly
     Dune::Fem::GlobalRefine::apply( grid, refineStepsForHalf );
 
-    const double newError = algorithm( grid, step );
-    const double eoc = log( oldError / newError ) / M_LN2;
-    if( Dune::Fem::MPIManager::rank() == 0 )
-    {
-      std::cout << "Error: " << newError << std::endl;
-      std::cout << "EOC( " << step << " ) = " << eoc << std::endl;
-    }
-    oldError = newError;
+    algorithm( grid, step, eocId );
   }
 
   return 0;

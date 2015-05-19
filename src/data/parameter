@@ -14,6 +14,7 @@ istl.preconditioning.relaxation: 1
 fem.preconditioning: true
 
 fem.prefix: ../output
+fem.eocOutPath: ../output/eoc
 fem.io.savestep: 0.2
 fem.timeprovider.factor: 1
 

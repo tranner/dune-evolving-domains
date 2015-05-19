@@ -208,6 +208,12 @@ public:
     //! [Solve the system]
   }
 
+  const int dofs() const
+  {
+    int tmp = discreteSpace_.size();
+    return Dune::Fem::MPIManager::comm().sum( tmp );
+  }
+
 protected:
   const ModelType& implicitModel_;   // the mathematical model
 
