@@ -188,10 +188,25 @@ public:
     return isDirichletPoint( inter.geometry().center() );
   }
 
+
   //! return true if given point belongs to the Dirichlet boundary (default is true)
   bool isDirichletPoint( const DomainType& x ) const 
   {
     return problem_.isDirichletPoint(x) ;
+  }
+
+  //! return true if given intersection belongs to the Neumann boundary -
+  //! we test here if the center is a neumann point
+  template <class Intersection>
+  bool isNeumannIntersection( const Intersection& inter ) const
+  {
+    return isNeumannPoint( inter.geometry().center() );
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  bool isNeumannPoint( const DomainType& x ) const
+  {
+    return problem_.isNeumannPoint(x) ;
   }
 
   template< class Entity, class Point >

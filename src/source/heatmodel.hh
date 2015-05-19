@@ -49,7 +49,7 @@
 #include "model.hh"
 
 template< class FunctionSpace, class GridPart >
-struct HeatModel : protected DiffusionModel<FunctionSpace,GridPart>
+struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
 {
   typedef DiffusionModel<FunctionSpace,GridPart> BaseType;
   typedef FunctionSpace FunctionSpaceType;

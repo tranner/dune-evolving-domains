@@ -229,8 +229,7 @@ void EllipticOperator< DiscreteFunction, Model >
 
 	  if( intersection.boundary() )
 	    {
-#warning all boundaries have Neumann data
-	      if( 0 /* model().isDirichletIntersection( intersection ) -- all boundaries are neumann */ )
+	      if( not model().isNeumannIntersection( intersection ) )
 		{
 		  continue;
 		}
@@ -344,8 +343,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
 
 	  if( intersection.boundary() )
 	    {
-#warning all boundaries have Neumann data
-	      if( 0 /* model().isDirichletIntersection( intersection ) -- all boundaries are neumann */ )
+	      if( not model().isNeumannIntersection( intersection ) )
 		{
 		  continue;
 		}

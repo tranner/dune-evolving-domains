@@ -117,6 +117,12 @@ public:
   //! return true if given point belongs to the Dirichlet boundary (default is true)
   virtual bool isDirichletPoint( const DomainType& x ) const 
   {
+    return true ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
     return false ;
   }
 

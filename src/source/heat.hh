@@ -120,6 +120,18 @@ public:
     // no exact solution
     ret = JacobianRangeType(0);
   }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
 };
 
 #endif // #ifndef POISSON_HH
