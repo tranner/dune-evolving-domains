@@ -7,14 +7,14 @@ WANT_ISTL = 1
 CLEANFILES = *.log
 
 TESTS = main
-check_PROGRAMS = main
+check_PROGRAMS = main-surface main-coupled
 
 AM_CPPFLAGS += $(ALL_PKG_CPPFLAGS) $(DUNEMPICPPFLAGS) -DPOLORDER=$(POLORDER) -DWANT_ISTL=$(WANT_ISTL)
 AM_LDFLAGS = $(ALL_PKG_LDFLAGS) $(DUNEMPILDFLAGS)
 LDADD = $(ALL_PKG_LIBS) $(DUNEMPILIBS)
 
-main_SOURCES = main.cc
-
+main_surface_SOURCES = main-surface.cc
+main_coupled_SOURCES = main-coupled.cc
 
 LESSON = 12
 SOLUTION = 1

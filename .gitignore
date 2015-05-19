@@ -35,6 +35,8 @@ src/source/.deps/
 src/source/Makefile
 src/source/Makefile.in
 src/source/dgfparser.log
-src/source/main
-src/source/main.o
+src/source/main-surface
+src/source/main-surface.o
+src/source/main-coupled
+src/source/main-coupled.o
 stamp-h1
