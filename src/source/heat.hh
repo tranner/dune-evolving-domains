@@ -109,7 +109,6 @@ public:
   virtual void u(const DomainType& x,
                  RangeType& phi) const
   {
-    // no exact solution - method needed for initial data
     phi = sin( time() ) * x[0] * x[1];
   }
 
@@ -117,8 +116,28 @@ public:
   virtual void uJacobian(const DomainType& x,
                          JacobianRangeType& ret) const
   {
-    // no exact solution
-    ret = JacobianRangeType(0);
+    JacobianRangeType grad;
+    grad[ 0 ][ 0 ] = sin( time() ) * x[1];
+    grad[ 0 ][ 1 ] = sin( time() ) * x[0];
+    grad[ 0 ][ 2 ] = 0.0;
+
+    const double at = 1.0 + 0.25 * sin( time() );
+    DomainType nu;
+    nu[ 0 ] = 2.0 * x[ 0 ] / at;
+    nu[ 1 ] = 2.0 * x[ 1 ];
+    nu[ 2 ] = 2.0 * x[ 2 ];
+    nu /= nu.two_norm();
+
+    double dot = 0;
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	dot += nu[ i ] * grad[ 0 ][ i ];
+      }
+
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	ret[ 0 ][ i ] = grad[ 0 ][ i ] - dot * nu[ i ];
+      }
   }
 
   //! return true if given point belongs to the Dirichlet boundary (default is true)
