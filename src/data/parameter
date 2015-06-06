@@ -1,9 +1,11 @@
+
 fem.verboserank: 0
 fem.solver.verbose: 0
 
 #fem.io.macroGridFile_2d: ../data/unitcube-2d.dgf
 #fem.io.macroGridFile_2d: ../data/spiral-2d.dgf
 #fem.io.macroGridFile_2d: ../data/sphere.dgf
+fem.io.macroGridFile_3d: ../data/ball.dgf
 fem.io.macroGridFile_2d: ../data/hemi-sphere.dgf
 fem.io.macroGridFile_1d: ../data/circle.dgf
 
@@ -15,14 +17,15 @@ fem.preconditioning: true
 
 fem.prefix: ../output
 fem.eocOutPath: ../output/eoc
-fem.io.savestep: 0.2
+fem.io.savestep: 0.0
+fem.io.savecount: 1
 fem.timeprovider.factor: 1
 
 heat.timestep: 0.1
 heat.endtime: 10
 heat.theta: 0.5
 heat.level: 0
-heat.repeats: 4
+heat.repeats: 10
 heat.reducetimestepfactor: 0.25
 
 spiral.timestep: 0.01 # explicit rhs: 0.005

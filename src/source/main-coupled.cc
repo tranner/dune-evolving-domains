@@ -4,220 +4,203 @@
 #include <iostream>
 
 // include grid part
-#include <dune/fem/gridpart/filteredgridpart.hh>
-#include "../../common/source/radialfilter.hh"
-#if FEM_FEM
 #include <dune/fem/gridpart/adaptiveleafgridpart.hh>
-#else
-#include <dune/fem/gridpart/leafgridpart.hh>
-#endif
 
-#include <dune/fem_fem_coupling/surfacegridclass.hh>
+#include <dune/grid/albertagrid/agrid.hh>
+#include <dune/grid/albertagrid/gridfactory.hh>
+#include <dune/grid/albertagrid/dgfparser.hh>
+
+// include norms
+#include <dune/fem/misc/l2norm.hh>
 
 // include output
 #include <dune/fem/io/file/dataoutput.hh>
 
 // include header of adaptive scheme
-#include "../../common/source/poisson.hh"
-#include "../../common/source/femscheme.hh"
-
-#include <dune/fem_fem_coupling/fem_fem_coupling.hh>
+#include "poisson.hh"
+#include "coupledscheme.hh"
+#include "model.hh"
 
 // assemble-solve-estimate-mark-refine-IO-error-doitagain
-template <class HGridType>
-double algorithm ( HGridType &grid, int step )
+template <class CoupledGridType >
+double algorithm ( CoupledGridType &coupledGrid, int step )
 {
   // create host grid part consisting of leaf level elements
-  typedef typename Dune::FemFemCoupling::Glue<HGridType>::HostGridPartType HostGridPartType;
-  HostGridPartType hostGridPart( grid );
-
-  // create filters
-  typedef typename Dune::FemFemCoupling::Glue<HGridType>::FilterType FilterType;
-  typename FilterType::GlobalCoordinateType center( 0.5 );
-  // dummey filter just captures whole of mesh given in
-  typename FilterType::ctype radias( 10.0 );
-  FilterType filter( hostGridPart, center, radias, true );
-  // true filter to generate mesh to be used in glue object generation for overlapping case
-  // typename FilterType::ctype radius( -SliceStore::sliceHome() );
-  // FilterType Filter( hostGridPart, center, radius, true );
-
-  // we want to solve the problem on the leaf elements of the grid
-  typedef typename Dune::FemFemCoupling::Glue< HGridType >::GridPartType GridPartType;
-  GridPartType gridPart( hostGridPart, filter );
-  // GridPartType GridPart( hostGridPart, Filter );
+  typedef typename CoupledGridType :: HBulkGridType HBulkGridType;
+  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkGridPartType;
+  BulkGridPartType bulkGridPart( coupledGrid.bulkGrid() );
+  typedef typename CoupledGridType :: HSurfaceGridType HSurfaceGridType;
+  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
+  SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
 
   // use a scalar function space
-  typedef typename Dune::FemFemCoupling::Glue<HGridType>::FunctionSpaceType FunctionSpaceType;
+  typedef Dune::Fem::FunctionSpace< double, double, HBulkGridType::dimensionworld, 1 > FunctionSpaceType;
+
+  // choose problem
+  typedef BulkProblem< FunctionSpaceType > BulkProblemType;
+  BulkProblemType bulkProblem;
+  typedef SurfaceProblem< FunctionSpaceType > SurfaceProblemType;
+  SurfaceProblemType surfaceProblem;
 
   // type of the mathematical model used
-  typedef DiffusionModel< FunctionSpaceType, GridPartType, FunctionSpaceType > ModelType;
-
-  typedef typename ModelType::ProblemType ProblemType ;
-  ProblemType* problemPtr = 0 ;
-  const std::string problemNames [] = { "cos", "sphere", "sin", "bulkprob", "surfprob" };
-  const int problemNumber = Dune::Fem::Parameter::getEnum("volume.problem", problemNames, 0 );
-  switch ( problemNumber )
-  {
-    case 0:
-      problemPtr = new CosinusProduct< FunctionSpaceType > ();
-      break ;
-    case 1:
-      problemPtr = new SphereProblem< FunctionSpaceType > ();
-      break ;
-    case 2:
-      problemPtr = new SinusProduct< FunctionSpaceType > ();
-      break ;
-    case 3:
-      problemPtr = new BulkProblem< FunctionSpaceType > ();
-      break ;
-    case 4:
-      problemPtr = new SurfaceProblem< FunctionSpaceType > ();
-      break ;
-    default:
-      problemPtr = new CosinusProduct< FunctionSpaceType > ();
-  }
-  assert( problemPtr );
-  ProblemType& problem = *problemPtr ;
-
-  // implicit model for left hand side
-  ModelType implicitModel( problem, gridPart );
-  // ModelType ImplicitModel( problem, GridPart );
+  typedef DiffusionModel< FunctionSpaceType, BulkGridPartType > BulkModelType;
+  BulkModelType bulkImplicitModel( bulkProblem, bulkGridPart );
+  typedef DiffusionModel< FunctionSpaceType, SurfaceGridPartType > SurfaceModelType;
+  SurfaceModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart );
 
   // create adaptive scheme
-  typedef FemScheme< ModelType, istl > SchemeType;
-  SchemeType scheme( gridPart, implicitModel,"bulk" );
+  typedef CoupledScheme< BulkModelType, SurfaceModelType, CoupledGridType > SchemeType;
+  SchemeType scheme( bulkGridPart, surfaceGridPart, bulkImplicitModel, surfaceImplicitModel, coupledGrid );
 
-  // create dune grid file with surface mesh
-  typedef typename Dune::FemFemCoupling::Glue< HGridType >::GrydType GrydType;
-  // create dune grid file with surface mesh
-  GrydType* grydPtr = scheme.extractSurface();
-  GrydType& gryd = *grydPtr ;
+  typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
+  BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );
+  typedef Dune::Fem::GridFunctionAdapter< SurfaceProblemType, SurfaceGridPartType > SurfaceGridExactSolutionType;
+  SurfaceGridExactSolutionType surfaceGridExactSolution("surface exact solution", surfaceProblem, surfaceGridPart, 5 );
 
-  // do initial load balance
-  gryd.loadBalance();
-  
-  typedef typename Dune::FemFemCoupling::Glue< HGridType >::GrydPartType GrydPartType;
-  GrydPartType grydPart(gryd);
-  
-  // use a scalar function space
-  typedef typename Dune::FemFemCoupling::Glue<HGridType>::FunctionSpaceOutsideType ExtractedSurfaceFunctionSpaceType;
-
-  // type of the mathematical model used
-  typedef DiffusionModel< ExtractedSurfaceFunctionSpaceType, GrydPartType, ExtractedSurfaceFunctionSpaceType > ExtractedSurfaceModelType;
-
-  typedef typename ExtractedSurfaceModelType::ProblemType ExtractedSurfaceProblemType ;
-  ExtractedSurfaceProblemType* problimPtr = 0 ;
-
-  const int problimNumber = Dune::Fem::Parameter::getEnum("surface.problem", problemNames, 0 );
-
-  switch ( problimNumber )
-  {
-    case 0:
-      problimPtr = new CosinusProduct< ExtractedSurfaceFunctionSpaceType > ();
-      break ;
-    case 1:
-      problimPtr = new SphereProblem< ExtractedSurfaceFunctionSpaceType > ();
-      break ;
-    case 2:
-      problimPtr = new SinusProduct< ExtractedSurfaceFunctionSpaceType > ();
-      break ;
-    case 3:
-      problimPtr = new BulkProblem< ExtractedSurfaceFunctionSpaceType > ();
-      break ;
-    case 4:
-      problimPtr = new SurfaceProblem< ExtractedSurfaceFunctionSpaceType > ();
-      break ;
-    default:
-      problimPtr = new CosinusProduct< ExtractedSurfaceFunctionSpaceType > ();
-  }
-  assert( problemPtr );
-  ExtractedSurfaceProblemType& problim = *problimPtr ;
-
-  ExtractedSurfaceModelType implycitModel( problim, grydPart );
-  
-  typedef FemScheme< ExtractedSurfaceModelType, armadillo > ExtractedSurfaceSchemeType;
-  ExtractedSurfaceSchemeType schyme( grydPart, implycitModel,"surface" );
-
-  // SchemeType scheme( gridPart, implicitModel );
-  // int ghg = 0;
-  // std::cin >> ghg;
-
-  typedef Dune::Fem::GridFunctionAdapter< ProblemType, GridPartType > GridExactSolutionType;
-  typedef Dune::Fem::GridFunctionAdapter< ProblemType, GrydPartType > GrydExactSolutionType;
-  GridExactSolutionType gridExactSolution("exact solution", problem, gridPart, 5 );
-  GrydExactSolutionType grydExactSolution("exact solution", problim, grydPart, 5 );
   //! input/output tuple and setup datawritter
-  typedef Dune::tuple< const typename SchemeType::DiscreteFunctionType *, GridExactSolutionType * > IOTupleType;
-  typedef Dune::Fem::DataOutput< HGridType, IOTupleType > DataOutputType;
-  IOTupleType ioTuple( &(scheme.solution()), &gridExactSolution) ; // tuple with pointers
-  DataOutputType dataOutput( grid, ioTuple, DataOutputParameters( step ) );
+  typedef Dune::tuple< const typename SchemeType::BulkDiscreteFunctionType *, BulkGridExactSolutionType * > BulkIOTupleType;
+  typedef Dune::Fem::DataOutput< HBulkGridType, BulkIOTupleType > BulkDataOutputType;
+  BulkIOTupleType bulkIoTuple( &(scheme.bulkSolution()), &bulkGridExactSolution) ; // tuple with pointers
+  BulkDataOutputType bulkDataOutput( coupledGrid.bulkGrid(), bulkIoTuple, DataOutputParameters( step, "bulk" ) );
 
-  typedef Dune::tuple< const typename ExtractedSurfaceSchemeType::DiscreteFunctionType *, GrydExactSolutionType *  > SurfaceIOTupleType;
-  typedef Dune::Fem::DataOutput< GrydType, SurfaceIOTupleType > SurfaceDataOutputType;
-  SurfaceIOTupleType surfaceioTuple( &(schyme.solution()), &grydExactSolution ) ; // tuple with pointers
-  SurfaceDataOutputType surfacedataOutput( gryd, surfaceioTuple, DataOutputParameters( step, "surface" ) );
+  typedef Dune::tuple< const typename SchemeType::SurfaceDiscreteFunctionType *, SurfaceGridExactSolutionType * > SurfaceIOTupleType;
+  typedef Dune::Fem::DataOutput< HSurfaceGridType, SurfaceIOTupleType > SurfaceDataOutputType;
+  SurfaceIOTupleType surfaceIoTuple( &(scheme.surfaceSolution()), &surfaceGridExactSolution) ; // tuple with pointers
+  SurfaceDataOutputType surfaceDataOutput( coupledGrid.surfaceGrid(), surfaceIoTuple, DataOutputParameters( step, "surface" ) );
 
-  // calculate error 
-  double error = 0;
-  double errer = 0;
+  // setup the right hand side
+  scheme.prepare();
+  // solve once
+  scheme.solve( true );
 
-#if 0
-  // iterate a certain number of times
-  for( int n = 0; n <= 31; ++n )
-  {
-    // set-up the coupling
-    scheme.setup(schyme.solution());
-    schyme.setup(scheme.solution());
+  bulkDataOutput.write();
+  surfaceDataOutput.write();
 
-    // setup the right hand side
-    scheme.prepare();
-    schyme.prepare();
+  // compute error
+  typename Dune :: Fem :: L2Norm< BulkGridPartType > bulkNorm( bulkGridPart );
+  const double bulkError = bulkNorm.distance( bulkGridExactSolution, scheme.bulkSolution() );
 
-    // apply the coupling
-    scheme.couple(schyme.solution());
-    schyme.couple(scheme.solution());
+  typename Dune :: Fem :: L2Norm< SurfaceGridPartType > surfaceNorm( surfaceGridPart );
+  const double surfaceError = surfaceNorm.distance( surfaceGridExactSolution, scheme.surfaceSolution() );
 
-    // solve once 
-    scheme.solve( n == 0 );
-    schyme.solve( n == 0 );
-
-    // calculate standard error 
-    // select norm for error computation
-    typedef Dune::Fem::L2Norm< GridPartType > NormType;
-    typedef Dune::Fem::L2Norm< GrydPartType > NurmType;
-    NormType norm( gridPart );
-    NurmType nurm( grydPart );
-    error = norm.distance( gridExactSolution, scheme.solution() );
-    errer = nurm.distance( grydExactSolution, schyme.solution() );
-    std::cout << "                                                   Error at iteration " << n << " = " << error << " + " << errer << " = " << error + errer << std::endl;
-
-    // check for convergence
-    bool done = scheme.stop(); bool dune = schyme.stop();
-    if ( ( n > 3 ) && done && dune )
-    {
-      std::cout << "Converged at iteration " << n << " to an error of " << error+errer << std::endl;
-      break;
-    }
-
-    // only write output (and continue iterating) if solution still converging
-    else
-    {
-      // write initial solve 
-      dataOutput.write();
-      surfacedataOutput.write();
-
-      // reset the problem
-      scheme.reset();
-      schyme.reset();
-    }
-  }
-#endif
-  // write initial solve 
-  dataOutput.write();
-  surfacedataOutput.write();
-
-  return error + errer;
+  return std::sqrt( bulkError * bulkError + surfaceError * surfaceError );
 }
+
+template< class HBulkGrid, class HSurfaceGrid >
+struct CoupledGrid
+{
+  typedef HBulkGrid HBulkGridType;
+  typedef HSurfaceGrid HSurfaceGridType;
+
+  typedef typename HBulkGridType :: LeafGridView BulkLeafGridViewType;
+
+  // type of iterators
+  typedef typename BulkLeafGridViewType :: template Codim < 0 > :: Iterator ElementIteratorType;
+  typedef typename ElementIteratorType :: Entity BulkEntityType;
+  typedef typename BulkEntityType :: EntitySeed BulkEntitySeedType;
+  typedef typename BulkEntityType :: EntityPointer BulkEntityPointerType;
+  typedef typename BulkLeafGridViewType :: IntersectionIterator IntersectionIteratorType;
+
+  typedef typename Dune :: GridFactory< HSurfaceGridType > GridFactoryType;
+  typedef typename std::vector< BulkEntitySeedType > BulkSeedVectorType;
+
+  CoupledGrid( HBulkGrid &bulkGrid )
+    : bulkGrid_( bulkGrid )
+  {
+    assert( HBulkGrid::dimension == 3 );
+
+    // create vertex list to avoid duplicated
+    std::vector< Dune :: FieldVector< double, HBulkGrid::dimension > > vertexList;
+
+    // find view of grid
+    BulkLeafGridViewType leafView = bulkGrid.leafGridView();
+
+    // add surface grid to factory
+    unsigned int count = 0;
+    const ElementIteratorType end = leafView.template end< 0 >();
+    for( ElementIteratorType it = leafView.template begin< 0 >(); it !=  end;
+	 ++ it )   // iterate over elements
+      {
+	const IntersectionIteratorType iitend = leafView.iend( *it );
+	for( IntersectionIteratorType iit = leafView.ibegin( *it ); iit != iitend;
+	     ++ iit ) // iterate over intersections
+	  {
+	    if( iit->boundary() ) // if interseciton is on boundary
+	      {
+		// add vertices
+		std::vector< unsigned int > idx;
+		for( int co = 0; co < iit->geometry().corners(); ++co )
+		  {
+		    // get vertex
+		    const Dune :: FieldVector< double, HBulkGrid::dimension >
+		      &vertex = iit->geometry().corner( co );
+
+		    // check if already added and find index
+		    bool added = false;
+		    unsigned int j = 0;
+		    for( j = 0; j < vertexList.size(); ++ j )
+		      {
+			if( ( vertex - vertexList[j] ).two_norm() < 1.0e-8 )
+			  {
+			    added = true;
+			    break;
+			  }
+		      }
+
+		    if( added )
+		      {
+			idx.push_back( j );
+		      }
+		    else
+		      {
+			factory_.insertVertex( vertex );
+			vertexList.push_back( vertex );
+			idx.push_back( count );
+			++count;
+		      }
+		  }
+
+		// check if orientation of simplex is correct
+		Dune :: FieldVector< double, HBulkGrid::dimension > normal;
+		Dune :: FieldVector< double, HBulkGrid::dimension > e1 = vertexList[ idx[0] ] - vertexList[ idx[1] ];
+		Dune :: FieldVector< double, HBulkGrid::dimension > e2 = vertexList[ idx[0] ] - vertexList[ idx[2] ];
+		normal[0] = e1[1]*e2[2]-e1[2]*e2[1];
+		normal[1] = e1[2]*e2[0]-e1[0]*e2[2];
+		normal[2] = e1[0]*e2[1]-e1[1]*e2[0];
+
+		if( iit->centerUnitOuterNormal()*normal < 0)
+		  std::swap( idx[1], idx[2] );
+
+		// add element to factory
+		factory_.insertElement( iit->type(), idx );
+
+		// add bulk element seed to vector
+		const BulkEntitySeedType &bulkSeed = it->seed();
+		bulkSeedVector_.push_back( bulkSeed );
+	      }
+	  }
+      }
+
+    surfaceGridPtr_ = factory_.createGrid();
+  }
+
+  template< class SurfaceEntityType >
+  BulkEntitySeedType surfaceBulkMap( const SurfaceEntityType &entity ) const
+  {
+    const unsigned int seedIndex = factory_.insertionIndex( entity );
+    return bulkSeedVector_[ seedIndex ];
+  }
+
+  HBulkGridType &bulkGrid() { return bulkGrid_; }
+  HSurfaceGridType &surfaceGrid() { return *surfaceGridPtr_; }
+
+private:
+  HBulkGridType &bulkGrid_;
+  Dune::GridPtr< HSurfaceGridType > surfaceGridPtr_;
+
+  GridFactoryType factory_;
+  BulkSeedVectorType bulkSeedVector_;
+};
 
 // main
 // ----
@@ -239,58 +222,50 @@ try
   Dune::Fem::Parameter::append( "../data/parameter" );
 
   // type of hierarchical grid
-  typedef Dune::GridSelector::GridType  HGridType ;
-
-  // set slice value to be used for the gluing
-  Dune::SliceStore::sliceHome(-Dune::Fem::Parameter::getValue< double >( "coupling.inner" ));
-  Dune::SliceStore::x(1); Dune::SliceStore::y(1); 
-  if( HGridType::dimension < 3 )
-  {
-    Dune::SliceStore::z(0);
-  }
-  else
-  {
-    Dune::SliceStore::z(1);
-  }
-  Dune::SliceStore::sliceHome(-Dune::Fem::Parameter::getValue< double >( "coupling.outer" ),true);
+  //typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HBulkGridType;
+  //typedef Dune :: ALUGrid< 2, 3, Dune::simplex, Dune::conforming > HSurfaceGridType;
+  typedef Dune :: AlbertaGrid< 3, 3 > HBulkGridType;
+  typedef Dune :: AlbertaGrid< 2, 3 > HSurfaceGridType;
 
   // create grid from DGF file
-  const std::string gridkey = Dune::Fem::IOInterface::defaultGridKey( HGridType::dimension );
-  const std::string gridfile = Dune::Fem::Parameter::getValue< std::string >( gridkey );
+  const std::string bulkGridkey = Dune::Fem::IOInterface::defaultGridKey( HBulkGridType::dimension );
+  const std::string bulkGridFile = Dune::Fem::Parameter::getValue< std::string >( bulkGridkey );
 
   // the method rank and size from MPIManager are static
   if( Dune::Fem::MPIManager::rank() == 0 )
-    std::cout << "Loading macro grid: " << gridfile << std::endl;
+    std::cout << "Loading macro bulk grid: " << bulkGridFile << std::endl;
 
   // construct macro using the DGF Parser
-  Dune::GridPtr< HGridType > gridPtr( gridfile );
-  HGridType& grid = *gridPtr ;
+  Dune::GridPtr< HBulkGridType > bulkGridPtr( bulkGridFile );
+  HBulkGridType& bulkGrid = *bulkGridPtr ;
 
   // do initial load balance
-  grid.loadBalance();
+  bulkGrid.loadBalance();
 
   // initial grid refinement
-  const int level = Dune::Fem::Parameter::getValue< int >( "poisson.level" );
+  const int level = Dune::Fem::Parameter::getValue< int >( "heat.level" );
 
-  // number of global refinements to bisect grid width
-  const int refineStepsForHalf = Dune::DGFGridInfo< HGridType >::refineStepsForHalf();
-
-  // refine grid
-  Dune::Fem::GlobalRefine::apply( grid, level * refineStepsForHalf );
+  // refine mesh
+  const int refineStepsForHalf = Dune::DGFGridInfo< HBulkGridType >::refineStepsForHalf();
+  Dune::Fem::GlobalRefine::apply( bulkGrid, level * refineStepsForHalf );
 
   // setup EOC loop
-  const int repeats = Dune::Fem::Parameter::getValue< int >( "poisson.repeats", 0 );
+  const int repeats = Dune::Fem::Parameter::getValue< int >( "heat.repeats", 0 );
 
   // calculate first step
-  double oldError = algorithm( grid, (repeats > 0) ? 0 : -1 );
+  typedef CoupledGrid< HBulkGridType, HSurfaceGridType > CoupledGridType;
+  CoupledGridType coupledGrid( bulkGrid );
+
+  double oldError = algorithm( coupledGrid, (repeats > 0) ? 0 : -1 );
 
   for( int step = 1; step <= repeats; ++step )
   {
     // refine globally such that grid with is bisected
     // and all memory is adjusted correctly
-    Dune::Fem::GlobalRefine::apply( grid, refineStepsForHalf );
+    Dune::Fem::GlobalRefine::apply( bulkGrid, refineStepsForHalf );
+    CoupledGridType coupledGrid( bulkGrid );
 
-    const double newError = algorithm( grid, step );
+    const double newError = algorithm( coupledGrid, step );
     const double eoc = log( oldError / newError ) / M_LN2;
     if( Dune::Fem::MPIManager::rank() == 0 )
     {
