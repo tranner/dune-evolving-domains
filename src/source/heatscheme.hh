@@ -40,9 +40,57 @@
 
 // lagrange interpolation 
 #include <dune/fem/operator/lagrangeinterpolation.hh>
+// time provider
+#include <dune/fem/solver/timeprovider.hh>
 
 // local includes
 #include "femscheme.hh" 
+
+struct ErrorOutput
+{
+  ErrorOutput( const Dune::Fem::TimeProviderBase &tp,
+	       const DataOutputParameters &parameter )
+    : tp_( tp )
+  {
+    init( parameter );
+  }
+
+  ~ErrorOutput()
+  {
+    if( file_ )
+      file_.close();
+  }
+
+  void write( const double l2Error, const double h1Error )
+  {
+    if( file_ )
+      file_ << tp_.time() << "  " << l2Error << "  " << h1Error << std::endl;
+  }
+
+protected:
+  void init( const DataOutputParameters &parameter )
+  {
+    std::string name = Dune :: Fem ::Parameter :: commonOutputPath() + "/";
+    // add prefix for data file
+    name += parameter.prefix();
+    name += ".txt";
+
+    std::cout << "opening file: " << name << std::endl;
+    file_.open( name.c_str() );
+    if( !file_ )
+      {
+	std::cout << "could not write error file" << std::endl;
+      }
+
+    if( file_ )
+      file_ << "# time  $L^2$ error  $H^1$ error" << std::endl;
+  }
+
+private:
+  const Dune::Fem::TimeProviderBase &tp_;
+  mutable std::ofstream file_;
+};
+
 
 // HeatScheme 
 //-----------
@@ -63,14 +111,15 @@ struct HeatScheme : public FemScheme<ImplicitModel>
 
   HeatScheme( GridPartType &gridPart, 
               const ImplicitModelType& implicitModel,
-              const ExplicitModelType& explicitModel )
+              const ExplicitModelType& explicitModel,
+	      const unsigned int step = 0 )
   : BaseType(gridPart, implicitModel),
     explicitModel_(explicitModel),
     explicitOperator_( explicitModel_, discreteSpace_ ),
+    errorOutput_( implicitModel_.timeProvider(), DataOutputParameters( step ) ),
     linftyl2Error_( 0 ),
     l2h1Error_( 0 )
-  {
-  }
+  {}
 
   void prepare() 
   { 
@@ -101,6 +150,9 @@ struct HeatScheme : public FemScheme<ImplicitModel>
     H1NormType h1norm( gridPart_ );
     const double h1Error = h1norm.distance( exact, solution_ );
     l2h1Error_ = std::sqrt( l2h1Error_*l2h1Error_ + deltaT * h1Error * h1Error );
+
+    // write to file
+    errorOutput_.write( l2Error, h1Error );
   }
 
   double linftyl2Error() const
@@ -122,6 +174,7 @@ private:
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs 
 
+  ErrorOutput errorOutput_;
   double linftyl2Error_;
   double l2h1Error_;
 };

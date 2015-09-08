@@ -97,7 +97,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
 
   // create heat scheme
   typedef HeatScheme< ModelType, ModelType > SchemeType;
-  SchemeType scheme( gridPart, implicitModel, explicitModel );
+  SchemeType scheme( gridPart, implicitModel, explicitModel, step );
 
   typedef Dune::Fem::GridFunctionAdapter< ProblemType, GridPartType > GridExactSolutionType;
   GridExactSolutionType gridExactSolution("exact solution", problem, gridPart, 5 );
