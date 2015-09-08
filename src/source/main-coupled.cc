@@ -76,12 +76,20 @@ double algorithm ( CoupledGridType &coupledGrid, int step )
   bulkDataOutput.write();
   surfaceDataOutput.write();
 
+  // output important info
+  std::cout << "h: " << EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart ); << std::endl;
+  std::cout << "total dofs: "
+	    << scheme.dofs() << std::endl;
+
   // compute error
   typename Dune :: Fem :: L2Norm< BulkGridPartType > bulkNorm( bulkGridPart );
   const double bulkError = bulkNorm.distance( bulkGridExactSolution, scheme.bulkSolution() );
 
   typename Dune :: Fem :: L2Norm< SurfaceGridPartType > surfaceNorm( surfaceGridPart );
   const double surfaceError = surfaceNorm.distance( surfaceGridExactSolution, scheme.surfaceSolution() );
+
+  std::cout << "bulkError: " << bulkError << std::endl;
+  std::cout << "surfaceError: " << surfaceError << std::endl;
 
   return std::sqrt( bulkError * bulkError + surfaceError * surfaceError );
 }
