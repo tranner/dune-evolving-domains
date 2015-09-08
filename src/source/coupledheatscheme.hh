@@ -9,6 +9,54 @@
 // local includes
 #include "coupledscheme.hh"
 
+struct ErrorOutput
+{
+  ErrorOutput( const Dune::Fem::TimeProviderBase &tp,
+	       const DataOutputParameters &parameter )
+    : tp_( tp )
+  {
+    init( parameter );
+  }
+
+  ~ErrorOutput()
+  {
+    if( file_ )
+      file_.close();
+  }
+
+  void write( const double l2BulkError, const double h1BulkError,
+	      const double l2SurfaceError, const double h1SurfaceError )
+  {
+    if( file_ )
+      file_ << tp_.time() << "  " << l2BulkError << "  " << h1BulkError
+	    << "  " << l2SurfaceError << "  " << h1SurfaceError << std::endl;
+  }
+
+protected:
+  void init( const DataOutputParameters &parameter )
+  {
+    std::string name = Dune :: Fem ::Parameter :: commonOutputPath() + "/";
+    // add prefix for data file
+    name += parameter.prefix();
+    name += ".txt";
+
+    std::cout << "opening file: " << name << std::endl;
+    file_.open( name.c_str() );
+    if( !file_ )
+      {
+	std::cout << "could not write error file" << std::endl;
+      }
+
+    if( file_ )
+      file_ << "# time  $L^2(\\Omega(t))$ error  $H^1(\\Omega(t))$ error  "
+	    << "$L^2(\\Gamma(t))$ error  $H^1(\\Gamma(t))$ error" << std::endl;
+  }
+
+private:
+  const Dune::Fem::TimeProviderBase &tp_;
+  mutable std::ofstream file_;
+};
+
 template< class ImplicitModel, class ExplicitModel, unsigned int codim >
 struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
 {
@@ -19,6 +67,9 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
   typedef typename BaseType :: ModelType ImplicitModelType;
   typedef ExplicitModel ExplicitModelType;
   typedef typename BaseType :: DiscreteFunctionType DiscreteFunctionType;
+
+  typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
+  typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
 
   TemporalFemSchemeHolder( GridPartType &gridPart,
 			   const ImplicitModelType &implicitModel,
@@ -46,18 +97,16 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
   }
 
   template< class GridExactSolution >
-  void closeTimestep( const GridExactSolution &exact, const double deltaT )
+  double l2Error( const GridExactSolution &exact ) const
   {
+    L2NormType l2norm( gridPart_ );
+    return l2norm.distance( exact, solution_ );
   }
-
-  double linftyl2Error() const
+  template< class GridExactSolution >
+  double h1Error( const GridExactSolution &exact ) const
   {
-    return 0.0;
-  }
-
-  double l2h1Error() const
-  {
-    return 0.0;
+    H1NormType h1norm( gridPart_ );
+    return h1norm.distance( exact, solution_ );
   }
 
 private:
@@ -106,7 +155,13 @@ public:
       coupledGrid_( coupledGrid ),
       // tolerance for iterative solver
       solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
-      verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) )
+      verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) ),
+      // error stuffles
+      errorOutput_( bulkImplicitModel.timeProvider(), DataOutputParameters( step ) ),
+      linftyl2BulkError_( 0 ),
+      l2h1BulkError_( 0 ),
+      linftyl2SurfaceError_( 0 ),
+      l2h1SurfaceError_( 0 )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -188,25 +243,40 @@ public:
 
   template< class BulkGridExactSolution, class SurfaceGridExactSolution >
   void closeTimestep( const BulkGridExactSolution &bulkExact,
-		      const SurfaceGridExactSolution &surfaceExplicitModel,
+		      const SurfaceGridExactSolution &surfaceExact,
 		      const double deltaT )
-  {}
+  {
+    const double bulkl2error = bulk().l2Error( bulkExact );
+    linftyl2BulkError_ = std::max( linftyl2BulkError_, bulkl2error );
+
+    const double bulkh1error = bulk().h1Error( bulkExact );
+    l2h1BulkError_ = std::sqrt( l2h1BulkError_ * l2h1BulkError_ + deltaT * bulkh1error * bulkh1error );
+
+    const double surfacel2error = surface().l2Error( surfaceExact );
+    linftyl2SurfaceError_ = std::max( linftyl2SurfaceError_, surfacel2error );
+
+    const double surfaceh1error = surface().h1Error( surfaceExact );
+    l2h1SurfaceError_ = std::sqrt( l2h1SurfaceError_ * l2h1SurfaceError_ + deltaT * surfaceh1error * surfaceh1error );
+
+    // write to file
+    errorOutput_.write( bulkl2error, bulkh1error, surfacel2error, surfaceh1error );
+  }
 
   double linftyl2BulkError() const
   {
-    return 1.0;
+    return linftyl2BulkError_;
   }
   double l2h1BulkError() const
   {
-    return 1.0;
+    return l2h1BulkError_;
   }
   double linftyl2SurfaceError() const
   {
-    return 1.0;
+    return linftyl2SurfaceError_;
   }
   double l2h1SurfaceError() const
   {
-    return 1.0;
+    return l2h1SurfaceError_;
   }
 
   const int iterations() const
@@ -237,8 +307,14 @@ private:
   const CoupledGridType &coupledGrid_;
 
   const double solverEps_ ; // eps for linear solver
-const bool verbose_;
+  const bool verbose_;
   unsigned int iterations_;
+
+  ErrorOutput errorOutput_;
+  double linftyl2BulkError_;
+  double l2h1BulkError_;
+  double linftyl2SurfaceError_;
+  double l2h1SurfaceError_;
 };
 
 #endif // #ifndef COUPLED_HEATSCHEME_HH

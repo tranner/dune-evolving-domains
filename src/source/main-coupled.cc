@@ -65,7 +65,7 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SchemeType scheme( bulkGridPart, surfaceGridPart,
 		     bulkImplicitModel, bulkExplicitModel,
 		     surfaceImplicitModel, surfaceExplicitModel,
-		     coupledGrid );
+		     coupledGrid, step );
 
   typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
   BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );
