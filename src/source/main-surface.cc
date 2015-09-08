@@ -186,6 +186,7 @@ try
 
   // type of hierarchical grid
   typedef Dune::GridSelector::GridType  HGridType ;
+  static_assert( HGridType :: dimension == HGridType :: dimensionworld - 1, "this code is written with the assumption grid dim = world dim -1" );
 
   // create grid from DGF file
   const std::string gridkey = Dune::Fem::IOInterface::defaultGridKey( HGridType::dimension );
