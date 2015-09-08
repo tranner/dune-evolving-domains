@@ -153,4 +153,126 @@ public:
   }
 };
 
+template <class FunctionSpace>
+class BulkHeatProblem : public TemporalProblemInterface < FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  BulkHeatProblem( const Dune::Fem::TimeProviderBase &timeProvider )
+    : BaseType( timeProvider )
+  {}
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() );
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    value = 0.0;
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * x[0] * x[1];
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret = JacobianRangeType(0);
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+};
+
+template <class FunctionSpace>
+class SurfaceHeatProblem : public TemporalProblemInterface < FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  SurfaceHeatProblem( const Dune::Fem::TimeProviderBase &timeProvider )
+    : BaseType( timeProvider )
+  {}
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = RangeType(0);
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    value = 0.0;
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * x[0] * x[1];
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret = JacobianRangeType(0);
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+};
+
 #endif // #ifndef POISSON_HH

@@ -114,7 +114,7 @@ struct FemSchemeHolder
     return Dune::Fem::MPIManager::comm().sum( elements_ );
   }
 
-private:
+protected:
   const ModelType &implicitModel_; // the mathematical model
 
   GridPartType &gridPart_; // grid part(view), e.g. here the leaf grid the discrete space is build with
