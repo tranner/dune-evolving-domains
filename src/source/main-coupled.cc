@@ -12,9 +12,14 @@
 
 // include norms
 #include <dune/fem/misc/l2norm.hh>
+#include <dune/fem/misc/h1norm.hh>
 
 // include output
 #include <dune/fem/io/file/dataoutput.hh>
+
+// include eoc output
+#include <dune/fem/misc/femeoc.hh>
+#include "gridwidth.hh"
 
 // include header of adaptive scheme
 #include "poisson.hh"
@@ -23,7 +28,7 @@
 
 // assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class CoupledGridType >
-double algorithm ( CoupledGridType &coupledGrid, int step )
+void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 {
   // create host grid part consisting of leaf level elements
   typedef typename CoupledGridType :: HBulkGridType HBulkGridType;
@@ -76,22 +81,22 @@ double algorithm ( CoupledGridType &coupledGrid, int step )
   bulkDataOutput.write();
   surfaceDataOutput.write();
 
-  // output important info
-  std::cout << "h: " << EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart ); << std::endl;
-  std::cout << "total dofs: "
-	    << scheme.dofs() << std::endl;
+  const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
+  const int dofs = scheme.dofs();
 
   // compute error
-  typename Dune :: Fem :: L2Norm< BulkGridPartType > bulkNorm( bulkGridPart );
-  const double bulkError = bulkNorm.distance( bulkGridExactSolution, scheme.bulkSolution() );
+  std::vector< double > errorStore;
+  typename Dune :: Fem :: L2Norm< BulkGridPartType > bulkL2Norm( bulkGridPart );
+  errorStore.push_back( bulkL2Norm.distance( bulkGridExactSolution, scheme.bulkSolution() ) );
+  typename Dune :: Fem :: H1Norm< BulkGridPartType > bulkH1Norm( bulkGridPart );
+  errorStore.push_back( bulkH1Norm.distance( bulkGridExactSolution, scheme.bulkSolution() ) );
+  typename Dune :: Fem :: L2Norm< SurfaceGridPartType > surfaceL2Norm( surfaceGridPart );
+  errorStore.push_back( surfaceL2Norm.distance( surfaceGridExactSolution, scheme.surfaceSolution() ) );
+  typename Dune :: Fem :: H1Norm< SurfaceGridPartType > surfaceH1Norm( surfaceGridPart );
+  errorStore.push_back( surfaceH1Norm.distance( surfaceGridExactSolution, scheme.surfaceSolution() ) );
 
-  typename Dune :: Fem :: L2Norm< SurfaceGridPartType > surfaceNorm( surfaceGridPart );
-  const double surfaceError = surfaceNorm.distance( surfaceGridExactSolution, scheme.surfaceSolution() );
-
-  std::cout << "bulkError: " << bulkError << std::endl;
-  std::cout << "surfaceError: " << surfaceError << std::endl;
-
-  return std::sqrt( bulkError * bulkError + surfaceError * surfaceError );
+  Dune :: Fem :: FemEoc :: setErrors( eocId, errorStore );
+  Dune :: Fem :: FemEoc :: write( h, dofs, 0.0, 0.0, std::cout );
 }
 
 template< class HBulkGrid, class HSurfaceGrid >
@@ -229,6 +234,18 @@ try
   // append default parameter file
   Dune::Fem::Parameter::append( "../data/parameter" );
 
+  // initialzie eoc file
+  std::string eocOutPath = Dune::Fem::Parameter::getValue<std::string>("fem.eocOutPath", std::string("."));
+  Dune::Fem::FemEoc::initialize( eocOutPath, "eoc", "surface only" );
+
+  // add entries to eoc calculation
+  std::vector<std::string> femEocHeaders;
+  femEocHeaders.push_back("$L^2(\\Omega)$ error");
+  femEocHeaders.push_back("$H^1(\\Omega)$ error");
+  femEocHeaders.push_back("$L^2(\\Gamma)$ error");
+  femEocHeaders.push_back("$H^1(\\Gamma)$ error");
+  const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
+
   // type of hierarchical grid
   //typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HBulkGridType;
   //typedef Dune :: ALUGrid< 2, 3, Dune::simplex, Dune::conforming > HSurfaceGridType;
@@ -264,7 +281,7 @@ try
   typedef CoupledGrid< HBulkGridType, HSurfaceGridType > CoupledGridType;
   CoupledGridType coupledGrid( bulkGrid );
 
-  double oldError = algorithm( coupledGrid, (repeats > 0) ? 0 : -1 );
+  algorithm( coupledGrid, (repeats > 0) ? 0 : -1, eocId );
 
   for( int step = 1; step <= repeats; ++step )
   {
@@ -273,14 +290,7 @@ try
     Dune::Fem::GlobalRefine::apply( bulkGrid, refineStepsForHalf );
     CoupledGridType coupledGrid( bulkGrid );
 
-    const double newError = algorithm( coupledGrid, step );
-    const double eoc = log( oldError / newError ) / M_LN2;
-    if( Dune::Fem::MPIManager::rank() == 0 )
-    {
-      std::cout << "Error: " << newError << std::endl;
-      std::cout << "EOC( " << step << " ) = " << eoc << std::endl;
-    }
-    oldError = newError;
+    algorithm( coupledGrid, step, eocId );
   }
 
   return 0;
