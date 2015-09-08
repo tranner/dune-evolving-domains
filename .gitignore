@@ -30,6 +30,7 @@ src/output/*.pvd
 src/output/*.series
 src/output/*.vtu
 src/output/*.pvtu
+src/output/*.txt
 src/output/eoc/
 src/source/.deps/
 src/source/Makefile
