@@ -93,7 +93,7 @@ void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
 
       const typename BulkEntityType :: EntitySeed bulkSeed
 	= coupledGrid.surfaceBulkMap( entity );
-      const BulkEntityType &bulkEntity = *bulkDfSpace.gridPart().grid().entityPointer( bulkSeed );
+      const BulkEntityType &bulkEntity = *bulkDfSpace.gridPart().entityPointer( bulkSeed );
       const BulkGeometryType &bulkGeometry = bulkEntity.geometry();
 
       // surface forcing term g_h

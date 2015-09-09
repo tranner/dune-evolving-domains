@@ -10,9 +10,11 @@
 #include <dune/grid/albertagrid/gridfactory.hh>
 #include <dune/grid/albertagrid/dgfparser.hh>
 
-// include norms
-#include <dune/fem/misc/l2norm.hh>
-#include <dune/fem/misc/h1norm.hh>
+#define DEFORMATION 1
+// include geometrty grid part
+#include <dune/fem/gridpart/geogridpart.hh>
+// include description of surface deformation
+#include "deformation.hh"
 
 // include output
 #include <dune/fem/io/file/dataoutput.hh>
@@ -26,118 +28,6 @@
 #include "coupledheatscheme.hh"
 #include "heatmodel.hh"
 
-// assemble-solve-estimate-mark-refine-IO-error-doitagain
-template <class CoupledGridType >
-void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
-{
-  typedef typename CoupledGridType :: HBulkGridType HBulkGridType;
-  typedef typename CoupledGridType :: HSurfaceGridType HSurfaceGridType;
-
-  // use a scalar function space
-  typedef Dune::Fem::FunctionSpace< double, double, HBulkGridType::dimensionworld, 1 > FunctionSpaceType;
-  // create time provider
-  Dune::Fem::GridTimeProvider< HBulkGridType > timeProvider( coupledGrid.bulkGrid() );
-
-  // create host grid part consisting of leaf level elements
-
-  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkGridPartType;
-  BulkGridPartType bulkGridPart( coupledGrid.bulkGrid() );
-
-  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
-  SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
-
-  // choose problem
-  typedef BulkHeatProblem< FunctionSpaceType > BulkProblemType;
-  BulkProblemType bulkProblem( timeProvider );
-  typedef SurfaceHeatProblem< FunctionSpaceType > SurfaceProblemType;
-  SurfaceProblemType surfaceProblem( timeProvider );
-
-  // type of the mathematical model used
-  typedef HeatModel< FunctionSpaceType, BulkGridPartType > BulkModelType;
-  BulkModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
-  BulkModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
-  typedef HeatModel< FunctionSpaceType, SurfaceGridPartType > SurfaceModelType;
-  SurfaceModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart, true );
-  SurfaceModelType surfaceExplicitModel( surfaceProblem, surfaceGridPart, false );
-
-  // create adaptive scheme
-  typedef CoupledHeatScheme< BulkModelType, BulkModelType, SurfaceModelType, SurfaceModelType, CoupledGridType > SchemeType;
-  SchemeType scheme( bulkGridPart, surfaceGridPart,
-		     bulkImplicitModel, bulkExplicitModel,
-		     surfaceImplicitModel, surfaceExplicitModel,
-		     coupledGrid, step );
-
-  typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
-  BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );
-  typedef Dune::Fem::GridFunctionAdapter< SurfaceProblemType, SurfaceGridPartType > SurfaceGridExactSolutionType;
-  SurfaceGridExactSolutionType surfaceGridExactSolution("surface exact solution", surfaceProblem, surfaceGridPart, 5 );
-
-  //! input/output tuple and setup datawritter
-  typedef Dune::tuple< const typename SchemeType::BulkDiscreteFunctionType *, BulkGridExactSolutionType * > BulkIOTupleType;
-  typedef Dune::Fem::DataOutput< HBulkGridType, BulkIOTupleType > BulkDataOutputType;
-  BulkIOTupleType bulkIoTuple( &(scheme.bulkSolution()), &bulkGridExactSolution) ; // tuple with pointers
-  BulkDataOutputType bulkDataOutput( coupledGrid.bulkGrid(), bulkIoTuple, DataOutputParameters( step, "bulk" ) );
-
-  typedef Dune::tuple< const typename SchemeType::SurfaceDiscreteFunctionType *, SurfaceGridExactSolutionType * > SurfaceIOTupleType;
-  typedef Dune::Fem::DataOutput< HSurfaceGridType, SurfaceIOTupleType > SurfaceDataOutputType;
-  SurfaceIOTupleType surfaceIoTuple( &(scheme.surfaceSolution()), &surfaceGridExactSolution) ; // tuple with pointers
-  SurfaceDataOutputType surfaceDataOutput( coupledGrid.surfaceGrid(), surfaceIoTuple, DataOutputParameters( step, "surface" ) );
-
-  const double endTime  = Dune::Fem::Parameter::getValue< double >( "heat.endtime", 2.0 );
-  const double dtreducefactor = Dune::Fem::Parameter::getValue< double >("heat.reducetimestepfactor", 1 );
-  double timeStep = Dune::Fem::Parameter::getValue< double >( "heat.timestep", 0.125 );
-
-  timeStep *= pow(dtreducefactor,step);
-
-  //! [time loop]
-  // initialize with fixed time step
-  timeProvider.init( timeStep ) ;
-
-  // initialize scheme and output initial data
-  scheme.initialize();
-  // write initial solve
-  bulkDataOutput.write( timeProvider );
-  surfaceDataOutput.write( timeProvider );
-
-  // time loop, increment with fixed time step
-  for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )
-  //! [time loop]
-  {
-    // assemble explicit pare
-    scheme.prepare();
-    //! [Set the new time to move to new surface]
-#if 0
-    deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
-#else
-#warning no deformation
-#endif
-    // solve once - but now we need to reassmble
-    scheme.solve(true);
-    //! [Set the new time to move to new surface]
-    bulkDataOutput.write( timeProvider );
-    surfaceDataOutput.write( timeProvider );
-    // finalise (compute errors)
-    scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider.deltaT() );
-  }
-
-  // output final solution
-  bulkDataOutput.write( timeProvider );
-  surfaceDataOutput.write( timeProvider );
-
-
-  // get errors
-  std::vector< double > store;
-  store.push_back( scheme.linftyl2BulkError() );
-  store.push_back( scheme.l2h1BulkError() );
-  store.push_back( scheme.linftyl2SurfaceError() );
-  store.push_back( scheme.l2h1SurfaceError() );
-  Dune :: Fem :: FemEoc :: setErrors( eocId, store );
-
-  // write to file / output
-  const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
-  const int dofs = scheme.dofs();
-  Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
-}
 
 template< class HBulkGrid, class HSurfaceGrid >
 struct CoupledGrid
@@ -153,6 +43,8 @@ struct CoupledGrid
   typedef typename BulkEntityType :: EntitySeed BulkEntitySeedType;
   typedef typename BulkEntityType :: EntityPointer BulkEntityPointerType;
   typedef typename BulkLeafGridViewType :: IntersectionIterator IntersectionIteratorType;
+
+  typedef typename HSurfaceGridType :: LeafGridView :: template Codim< 0 > :: Iterator :: Entity SurfaceEntityType;
 
   typedef typename Dune :: GridFactory< HSurfaceGridType > GridFactoryType;
   typedef typename std::vector< BulkEntitySeedType > BulkSeedVectorType;
@@ -237,15 +129,31 @@ struct CoupledGrid
     surfaceGridPtr_ = factory_.createGrid();
   }
 
-  template< class SurfaceEntityType >
   BulkEntitySeedType surfaceBulkMap( const SurfaceEntityType &entity ) const
   {
     const unsigned int seedIndex = factory_.insertionIndex( entity );
     return bulkSeedVector_[ seedIndex ];
   }
+  BulkEntitySeedType surfaceBulkMap( const unsigned int idx ) const
+  {
+    return bulkSeedVector_[ idx ];
+  }
 
   HBulkGridType &bulkGrid() { return bulkGrid_; }
   HSurfaceGridType &surfaceGrid() { return *surfaceGridPtr_; }
+
+  const HBulkGridType &bulkGrid() const { return bulkGrid_; }
+  const HSurfaceGridType &surfaceGrid() const { return *surfaceGridPtr_; }
+
+  const unsigned int seedIndex( const SurfaceEntityType &entity ) const
+  {
+    return factory_.insertionIndex( entity );
+  }
+
+  const unsigned int maxSeedIndex() const
+  {
+    return bulkSeedVector_.size();
+  }
 
 private:
   HBulkGridType &bulkGrid_;
@@ -254,6 +162,212 @@ private:
   GridFactoryType factory_;
   BulkSeedVectorType bulkSeedVector_;
 };
+
+template< class CoupledGrid, class BulkGeoGridPart, class SurfaceGeoGridPart >
+struct CoupledGeoGridPart
+{
+  typedef CoupledGrid HostGridType;
+  typedef BulkGeoGridPart BulkGeoGridPartType;
+  typedef SurfaceGeoGridPart SurfaceGeoGridPartType;
+
+  typedef typename HostGridType :: BulkEntityType BulkHostEntityType;
+  typedef typename HostGridType :: BulkEntitySeedType BulkHostEntitySeedType;
+  typedef typename HostGridType :: SurfaceEntityType SurfaceHostEntityType;
+
+  typedef typename BulkGeoGridPartType :: template Codim< 0 > :: IteratorType BulkIteratorType;
+  typedef typename BulkIteratorType :: Entity BulkEntityType;
+  typedef typename BulkEntityType :: EntitySeed BulkEntitySeedType;
+  typedef typename SurfaceGeoGridPartType :: template Codim< 0 > :: IteratorType :: Entity SurfaceEntityType;
+
+  typedef std::vector< BulkEntitySeedType > BulkHostGeoMapType;
+
+  CoupledGeoGridPart( const HostGridType &coupledGrid,
+		      const BulkGeoGridPartType &bulkGridPart,
+		      const SurfaceGeoGridPartType &surfaceGridPart )
+    : coupledGrid_( coupledGrid ),
+      bulkGridPart_( bulkGridPart_ ),
+      surfaceGridPart_( surfaceGridPart_ ),
+      map_( coupledGrid_.maxSeedIndex() )
+  {
+    BulkIteratorType end = bulkGridPart.template end< 0 >();
+    for( BulkIteratorType it = bulkGridPart.template begin< 0 >(); it != end; ++it )
+      {
+	const BulkEntityType &entity = *it;
+	const BulkHostEntityType &hostEntity = gridEntity( entity );
+	const typename BulkHostEntityType :: EntityPointer hostEntityPtr( hostEntity );
+
+	for( unsigned int i = 0; i < coupledGrid_.maxSeedIndex(); ++i )
+	  {
+	    if( map_[ i ].isValid() )
+	      continue;
+
+	    const BulkHostEntitySeedType &otherHostSeed = surfaceBulkMap( i );
+	    const typename BulkHostEntityType :: EntityPointer &otherHostEntityPtr
+	      = coupledGrid_.bulkGrid().entityPointer( otherHostSeed );
+	    if( hostEntityPtr == otherHostEntityPtr )
+	      {
+		map_[ i ] = entity.seed();
+	      }
+	  }
+      }
+  }
+  BulkEntitySeedType surfaceBulkMap( const SurfaceEntityType& entity ) const
+  {
+    const unsigned int idx = coupledGrid_.seedIndex( gridEntity( entity ) );
+    return map_[ idx ];
+  }
+
+protected:
+  BulkHostEntitySeedType surfaceBulkMap( const SurfaceHostEntityType &entity ) const
+  {
+    return coupledGrid_.surfaceBulkMap( entity );
+  }
+  BulkHostEntitySeedType surfaceBulkMap( const unsigned int idx ) const
+  {
+    return coupledGrid_.surfaceBulkMap( idx );
+  }
+
+private:
+  const HostGridType &coupledGrid_;
+  const BulkGeoGridPartType &bulkGridPart_;
+  const SurfaceGeoGridPartType &surfaceGridPart_;
+
+  BulkHostGeoMapType map_;
+};
+
+// assemble-solve-estimate-mark-refine-IO-error-doitagain
+template <class CoupledGridType >
+void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
+{
+  typedef typename CoupledGridType :: HBulkGridType HBulkGridType;
+  typedef typename CoupledGridType :: HSurfaceGridType HSurfaceGridType;
+
+  // use a scalar function space
+  typedef Dune::Fem::FunctionSpace< double, double, HBulkGridType::dimensionworld, 1 > FunctionSpaceType;
+  // create time provider
+  Dune::Fem::GridTimeProvider< HBulkGridType > timeProvider( coupledGrid.bulkGrid() );
+
+#if DEFORMATION
+  // create host grid part consisting of leaf level elements
+  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkHostGridPartType;
+  BulkHostGridPartType bulkHostGridPart( coupledGrid.bulkGrid() );
+  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceHostGridPartType;
+  SurfaceHostGridPartType surfaceHostGridPart( coupledGrid.surfaceGrid() );
+
+  // construct deformaiton
+  typedef DeformationCoordFunction< HBulkGridType :: dimensionworld > DeformationType;
+  DeformationType deformation;
+
+  // bulk geometry grid part type
+  typedef Dune :: Fem :: GridFunctionAdapter< DeformationType, BulkHostGridPartType > BulkDiscreteDeformationType;
+  typedef Dune :: Fem :: GeoGridPart< BulkDiscreteDeformationType > BulkGridPartType;
+  BulkDiscreteDeformationType bulkDiscreteDeformation( "bulk deformation", deformation, bulkHostGridPart, 1 );
+  BulkGridPartType bulkGridPart( bulkDiscreteDeformation );
+
+  // surface geometry grid part type
+  typedef Dune :: Fem :: GridFunctionAdapter< DeformationType, SurfaceHostGridPartType > SurfaceDiscreteDeformationType;
+  typedef Dune :: Fem :: GeoGridPart< SurfaceDiscreteDeformationType > SurfaceGridPartType;
+  SurfaceDiscreteDeformationType surfaceDiscreteDeformation( "surface deformation", deformation, surfaceHostGridPart, 1 );
+  SurfaceGridPartType surfaceGridPart( surfaceDiscreteDeformation );
+
+  typedef CoupledGeoGridPart< CoupledGridType, BulkGridPartType, SurfaceGridPartType > CoupledGeoGridPartType;
+  CoupledGeoGridPartType coupledGeoGridPart( coupledGrid, bulkGridPart, surfaceGridPart );
+#else
+  // create host grid part consisting of leaf level elements
+  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkGridPartType;
+  BulkGridPartType bulkGridPart( coupledGrid.bulkGrid() );
+  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
+  SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
+#endif
+  // choose problem
+  typedef BulkHeatProblem< FunctionSpaceType > BulkProblemType;
+  BulkProblemType bulkProblem( timeProvider );
+  typedef SurfaceHeatProblem< FunctionSpaceType > SurfaceProblemType;
+  SurfaceProblemType surfaceProblem( timeProvider );
+
+  // type of the mathematical model used
+  typedef HeatModel< FunctionSpaceType, BulkGridPartType > BulkModelType;
+  BulkModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
+  BulkModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
+  typedef HeatModel< FunctionSpaceType, SurfaceGridPartType > SurfaceModelType;
+  SurfaceModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart, true );
+  SurfaceModelType surfaceExplicitModel( surfaceProblem, surfaceGridPart, false );
+
+  // create adaptive scheme
+  typedef CoupledHeatScheme< BulkModelType, BulkModelType, SurfaceModelType, SurfaceModelType, CoupledGeoGridPartType >
+    SchemeType;
+  SchemeType scheme( bulkGridPart, surfaceGridPart,
+		     bulkImplicitModel, bulkExplicitModel,
+		     surfaceImplicitModel, surfaceExplicitModel,
+		     coupledGeoGridPart, step );
+
+  typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
+  BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );
+  typedef Dune::Fem::GridFunctionAdapter< SurfaceProblemType, SurfaceGridPartType > SurfaceGridExactSolutionType;
+  SurfaceGridExactSolutionType surfaceGridExactSolution("surface exact solution", surfaceProblem, surfaceGridPart, 5 );
+
+  //! input/output tuple and setup datawritter
+  typedef Dune::tuple< const typename SchemeType::BulkDiscreteFunctionType *, BulkGridExactSolutionType * > BulkIOTupleType;
+  typedef Dune::Fem::DataOutput< HBulkGridType, BulkIOTupleType > BulkDataOutputType;
+  BulkIOTupleType bulkIoTuple( &(scheme.bulkSolution()), &bulkGridExactSolution) ; // tuple with pointers
+  BulkDataOutputType bulkDataOutput( coupledGrid.bulkGrid(), bulkIoTuple, DataOutputParameters( step, "bulk" ) );
+
+  typedef Dune::tuple< const typename SchemeType::SurfaceDiscreteFunctionType *, SurfaceGridExactSolutionType * > SurfaceIOTupleType;
+  typedef Dune::Fem::DataOutput< HSurfaceGridType, SurfaceIOTupleType > SurfaceDataOutputType;
+  SurfaceIOTupleType surfaceIoTuple( &(scheme.surfaceSolution()), &surfaceGridExactSolution) ; // tuple with pointers
+  SurfaceDataOutputType surfaceDataOutput( coupledGrid.surfaceGrid(), surfaceIoTuple, DataOutputParameters( step, "surface" ) );
+
+  const double endTime  = Dune::Fem::Parameter::getValue< double >( "heat.endtime", 2.0 );
+  const double dtreducefactor = Dune::Fem::Parameter::getValue< double >("heat.reducetimestepfactor", 1 );
+  double timeStep = Dune::Fem::Parameter::getValue< double >( "heat.timestep", 0.125 );
+
+  timeStep *= pow(dtreducefactor,step);
+
+  //! [time loop]
+  // initialize with fixed time step
+  timeProvider.init( timeStep ) ;
+
+  // initialize scheme and output initial data
+  scheme.initialize();
+  // write initial solve
+  bulkDataOutput.write( timeProvider );
+  surfaceDataOutput.write( timeProvider );
+
+  // time loop, increment with fixed time step
+  for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )
+  //! [time loop]
+  {
+    // assemble explicit pare
+    scheme.prepare();
+    //! [Set the new time to move to new surface]
+    deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    // solve once - but now we need to reassmble
+    scheme.solve(true);
+    //! [Set the new time to move to new surface]
+    bulkDataOutput.write( timeProvider );
+    surfaceDataOutput.write( timeProvider );
+    // finalise (compute errors)
+    scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider.deltaT() );
+  }
+
+  // output final solution
+  bulkDataOutput.write( timeProvider );
+  surfaceDataOutput.write( timeProvider );
+
+
+  // get errors
+  std::vector< double > store;
+  store.push_back( scheme.linftyl2BulkError() );
+  store.push_back( scheme.l2h1BulkError() );
+  store.push_back( scheme.linftyl2SurfaceError() );
+  store.push_back( scheme.l2h1SurfaceError() );
+  Dune :: Fem :: FemEoc :: setErrors( eocId, store );
+
+  // write to file / output
+  const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
+  const int dofs = scheme.dofs();
+  Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
+}
 
 // main
 // ----
