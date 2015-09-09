@@ -5,6 +5,9 @@
 #include <dune/fem/operator/lagrangeinterpolation.hh>
 // time provider
 #include <dune/fem/solver/timeprovider.hh>
+// include norms
+#include <dune/fem/misc/l2norm.hh>
+#include <dune/fem/misc/h1norm.hh>
 
 // local includes
 #include "coupledscheme.hh"
