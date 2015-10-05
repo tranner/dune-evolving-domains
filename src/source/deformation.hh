@@ -59,7 +59,9 @@ struct DeformationCoordFunction
 
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
-    const double at = 1.0 + 0.25 * sin( time_ );
+    //    const double at = 1.0 + 0.25 * sin( time_ );
+#warning set a(t) = 1
+    const double at = 1.0;
 
     y[ 0 ] = x[ 0 ] * sqrt(at);
     y[ 1 ] = x[ 1 ];

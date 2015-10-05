@@ -286,19 +286,18 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceProblemType surfaceProblem( timeProvider );
 
   // type of the mathematical model used
-  typedef HeatModel< FunctionSpaceType, BulkGridPartType > BulkModelType;
-  BulkModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
-  BulkModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
-  typedef HeatModel< FunctionSpaceType, SurfaceGridPartType > SurfaceModelType;
-  SurfaceModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart, true );
-  SurfaceModelType surfaceExplicitModel( surfaceProblem, surfaceGridPart, false );
+  typedef CoupledHeatModel< FunctionSpaceType, BulkGridPartType, SurfaceGridPartType >
+    CoupledHeatModelType;
+  CoupledHeatModelType coupledImplicitModel( bulkProblem, surfaceProblem,
+					     bulkGridPart, surfaceGridPart, true );
+  CoupledHeatModelType coupledExplicitModel( bulkProblem, surfaceProblem,
+					     bulkGridPart, surfaceGridPart, false );
 
   // create adaptive scheme
-  typedef CoupledHeatScheme< BulkModelType, BulkModelType, SurfaceModelType, SurfaceModelType, CoupledGeoGridPartType >
-    SchemeType;
+  typedef CoupledHeatScheme< CoupledHeatModelType, CoupledHeatModelType,
+			     CoupledGeoGridPartType > SchemeType;
   SchemeType scheme( bulkGridPart, surfaceGridPart,
-		     bulkImplicitModel, bulkExplicitModel,
-		     surfaceImplicitModel, surfaceExplicitModel,
+		     coupledImplicitModel, coupledExplicitModel,
 		     coupledGeoGridPart, step );
 
   typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
@@ -339,13 +338,17 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   {
     // assemble explicit pare
     scheme.prepare();
+
     //! [Set the new time to move to new surface]
     deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+
     // solve once - but now we need to reassmble
     scheme.solve(true);
+
     //! [Set the new time to move to new surface]
     bulkDataOutput.write( timeProvider );
     surfaceDataOutput.write( timeProvider );
+
     // finalise (compute errors)
     scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider.deltaT() );
   }

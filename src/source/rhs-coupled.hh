@@ -6,17 +6,22 @@
 // assembleRHS
 // -----------
 
-template< class BulkModel, class SurfaceModel,
+template< class CoupledModel,
 	  class BulkDiscreteFunction, class SurfaceDiscreteFunction,
 	  class CoupledGrid >
-void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
+void assembleRHS ( const CoupledModel &coupledModel,
 		   const BulkDiscreteFunction &bulkSolution,
 		   const SurfaceDiscreteFunction &surfaceSolution,
 		   const CoupledGrid &coupledGrid,
 		   BulkDiscreteFunction &bulkRhs, SurfaceDiscreteFunction &surfaceRhs )
 {
-  typedef typename BulkModel :: RightHandSideType BulkRightHandSideType;
-  typedef typename SurfaceModel :: RightHandSideType SurfaceRightHandSideType;
+  typedef typename CoupledModel :: BulkModelType BulkModelType;
+  typedef typename CoupledModel :: SurfaceModelType SurfaceModelType;
+
+  typedef typename BulkModelType :: TimeProviderType TimeProviderType;
+
+  typedef typename BulkModelType :: RightHandSideType BulkRightHandSideType;
+  typedef typename SurfaceModelType :: RightHandSideType SurfaceRightHandSideType;
 
   typedef typename BulkDiscreteFunction::DiscreteFunctionSpaceType BulkDiscreteFunctionSpaceType;
   typedef typename BulkDiscreteFunction::LocalFunctionType BulkLocalFunctionType;
@@ -41,8 +46,9 @@ void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
   typedef Dune::Fem::CachingQuadrature< BulkGridPartType, 0 > BulkQuadratureType;
   typedef Dune::Fem::CachingQuadrature< SurfaceGridPartType, 0 > SurfaceQuadratureType;
 
-  bulkRhs.clear();
-  surfaceRhs.clear();
+  const BulkModelType &bulkModel = coupledModel.bulkModel();
+  const SurfaceModelType &surfaceModel = coupledModel.surfaceModel();
+  const TimeProviderType &timeProvider = bulkModel.timeProvider();
 
   const BulkDiscreteFunctionSpaceType &bulkDfSpace = bulkRhs.space();
 
@@ -74,8 +80,8 @@ void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
 	    typename BulkRightHandSideType :: RangeType fx;
 	    bulkModel.rightHandSide().evaluate( xGlobal, fx );
 
-	    // multiply by quadrature weight
-	    fx *= weight;
+	    // multiply by quadrature weight (and deltaT)
+	    fx *= weight * timeProvider.deltaT();
 
 	    // add fx * phi_i to rhsLocal[ i ]
 	    bulkRhsLocal.axpy( xLocal, fx );
@@ -121,8 +127,8 @@ void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
 	    typename SurfaceRightHandSideType :: RangeType fx;
 	    surfaceModel.rightHandSide().evaluate( xGlobal, fx );
 
-	    // multiply by quadrature weight
-	    fx *= weight;
+	    // multiply by quadrature weight (and deltaT)
+	    fx *= weight * timeProvider.deltaT();
 
 	    // add fx * phi_i to rhsLocal[ i ]
 	    surfaceRhsLocal.axpy( xLocal, fx );
@@ -134,15 +140,13 @@ void assembleRHS ( const BulkModel &bulkModel, const SurfaceModel &surfaceModel,
 	    // add bulk to surface coupling
 	    typename BulkLocalFunctionType :: RangeType uhx;
 	    bulkLocal.evaluate( xBulkLocal, uhx );
-	    uhx *= weight * 1;
-#warning using alpha = 1 here
+	    uhx *= weight * coupledModel.alpha();
 	    surfaceRhsLocal.axpy( xLocal, uhx );
 
 	    // add surface to bulk coupling
 	    typename SurfaceLocalFunctionType :: RangeType vhx;
 	    surfaceLocal.evaluate( xLocal, vhx );
-	    vhx *= weight * 1;
-#warning using beta = 1 here
+	    vhx *= weight * coupledModel.beta();
 	    bulkRhsLocal.axpy( xBulkLocal, vhx );
 	  }
       }

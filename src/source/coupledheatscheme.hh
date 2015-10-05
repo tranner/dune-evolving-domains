@@ -79,17 +79,23 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
 			   const ExplicitModelType &explicitModel )
     : BaseType( gridPart, implicitModel ),
       explicitModel_( explicitModel ),
-      explicitOperator_( explicitModel_ )
+      explicitOperator_( explicitModel_ ),
+      oldSolution_( solution_ )
   {}
 
-  void prepare()
+  void prepare( bool firstCall )
   {
+    if( firstCall )
+      {
+	oldSolution_.assign( solution_ );
+      }
+
     // apply constraints, e.g. Dirichlet contraints, to the solution
-    explicitOperator_.prepare( explicitModel_.dirichletBoundary(), solution_ );
+    //explicitOperator_.prepare( explicitModel_.dirichletBoundary(), oldSolution_ );
     // apply explicit operator and also setup right hand side
-    explicitOperator_( solution_, rhs_ );
+    explicitOperator_( oldSolution_, rhs_ );
     // apply constraints, e.g. Dirichlet contraints, to the result
-    explicitOperator_.prepare( solution_, rhs_ );
+    //explicitOperator_.prepare( oldSolution_, rhs_ );
   }
 
   void initialize ()
@@ -120,21 +126,28 @@ private:
   using BaseType::rhs_;
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs
+
+  DiscreteFunctionType oldSolution_;
 };
 
-template< class BulkImplicitModel, class BulkExplicitModel,
-	  class SurfaceImplicitModel, class SurfaceExplicitModel,
+template< class CoupledImplicitModel, class CoupledExplicitModel,
 	  class CoupledGrid >
 class CoupledHeatScheme
 {
 public:
-  typedef BulkImplicitModel BulkImplicitModelType;
-  typedef BulkExplicitModel BulkExplicitModelType;
-  typedef SurfaceImplicitModel SurfaceImplicitModelType;
-  typedef SurfaceExplicitModel SurfaceExplicitModelType;
+  typedef CoupledImplicitModel CoupledImplicitModelType;
+  typedef CoupledExplicitModel CoupledExplicitModelType;
+
+  typedef typename CoupledImplicitModelType :: BulkModelType BulkImplicitModelType;
+  typedef typename CoupledImplicitModelType :: SurfaceModelType SurfaceImplicitModelType;
+
+  typedef typename CoupledExplicitModelType :: BulkModelType BulkExplicitModelType;
+  typedef typename CoupledExplicitModelType :: SurfaceModelType SurfaceExplicitModelType;
+
   typedef CoupledGrid CoupledGridType;
 
-  typedef CoupledScheme< BulkImplicitModel, SurfaceImplicitModel, CoupledGrid > BaseType;
+  typedef CoupledScheme< BulkImplicitModelType, SurfaceImplicitModelType, CoupledGridType >
+  BaseType;
 
   typedef typename BulkImplicitModelType :: GridPartType BulkGridPartType;
   typedef typename SurfaceImplicitModelType :: GridPartType SurfaceGridPartType;
@@ -147,24 +160,27 @@ public:
 
   CoupledHeatScheme( BulkGridPartType &bulkGridPart,
 		     SurfaceGridPartType &surfaceGridPart,
-		     const BulkImplicitModelType &bulkImplicitModel,
-		     const BulkExplicitModelType &bulkExplicitModel,
-		     const SurfaceImplicitModelType &surfaceImplicitModel,
-		     const SurfaceExplicitModelType &surfaceExplicitModel,
+		     const CoupledImplicitModelType &coupledImplicitModel,
+		     const CoupledExplicitModelType &coupledExplicitModel,
 		     const CoupledGridType &coupledGrid,
 		     const unsigned int step = 0 )
-    : bulkScheme_( bulkGridPart, bulkImplicitModel, bulkExplicitModel ),
-      surfaceScheme_( surfaceGridPart, surfaceImplicitModel, surfaceExplicitModel ),
-      coupledGrid_( coupledGrid ),
-      // tolerance for iterative solver
-      solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
-      verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) ),
-      // error stuffles
-      errorOutput_( bulkImplicitModel.timeProvider(), DataOutputParameters( step ) ),
-      linftyl2BulkError_( 0 ),
-      l2h1BulkError_( 0 ),
-      linftyl2SurfaceError_( 0 ),
-      l2h1SurfaceError_( 0 )
+    : bulkScheme_( bulkGridPart, coupledImplicitModel.bulkModel(),
+		   coupledExplicitModel.bulkModel() ),
+      surfaceScheme_( surfaceGridPart, coupledImplicitModel.surfaceModel(),
+		      coupledExplicitModel.surfaceModel() ),
+    coupledImplicitModel_( coupledImplicitModel ),
+    coupledExplicitModel_( coupledExplicitModel ),
+    coupledGrid_( coupledGrid ),
+    // tolerance for iterative solver
+    solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
+    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) ),
+    // error stuffles
+    errorOutput_( coupledImplicitModel.bulkModel().timeProvider(),
+		  DataOutputParameters( step ) ),
+    linftyl2BulkError_( 0 ),
+    l2h1BulkError_( 0 ),
+    linftyl2SurfaceError_( 0 ),
+    l2h1SurfaceError_( 0 )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -176,16 +192,18 @@ public:
   {
     return surface().solution();
   }
-  void prepare()
+  void prepare( bool firstCall = true )
   {
-    bulk().prepare();
-    surface().prepare();
+    bulk().rhs().clear();
+    surface().rhs().clear();
 
-    assembleRHS( bulk().model(), surface().model(),
+    bulk().prepare( firstCall );
+    surface().prepare( firstCall );
+
+    assembleRHS( coupledImplicitModel_,
 		 bulkSolution(), surfaceSolution(),
 		 coupledGrid_,
 		 bulk().rhs(), surface().rhs() );
-#warning is forcing term in twice now?
   }
 
   void initialize()
@@ -238,7 +256,7 @@ public:
 		    << " surface solver it: " << surfaceInvOp.iterations()
 		    << std::endl;
 
-	prepare();
+	prepare( false );
 	++iterations_;
       }
     while( update > eps );
@@ -307,6 +325,8 @@ private:
   BulkFemSchemeHolderType bulkScheme_;
   SurfaceFemSchemeHolderType surfaceScheme_;
 
+  const CoupledImplicitModelType &coupledImplicitModel_;
+  const CoupledExplicitModelType &coupledExplicitModel_;
   const CoupledGridType &coupledGrid_;
 
   const double solverEps_ ; // eps for linear solver

@@ -178,7 +178,7 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = sin( time() );
+    phi = M_PI * cos( M_PI * time() ) * x[0] * x[1];
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -191,7 +191,7 @@ public:
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = sin( time() ) * x[0] * x[1];
+    phi = sin( M_PI * time() ) * x[0] * x[1];
   }
 
   //! the jacobian of the exact solution
@@ -239,7 +239,7 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = RangeType(0);
+    phi = 3.0 * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1];
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -252,7 +252,7 @@ public:
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = sin( time() ) * x[0] * x[1];
+    phi = 3.0 * sin( M_PI * time() ) * x[0] * x[1];
   }
 
   //! the jacobian of the exact solution

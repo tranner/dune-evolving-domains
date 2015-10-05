@@ -94,6 +94,7 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                 RangeType &flux ) const
   {
     linSource( value, entity, x, value, flux );
+#if 0
     // the explicit model should also evaluate the RHS
     if( !implicit_ ) 
     {
@@ -104,6 +105,9 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
       rhs  *= timeProvider_.deltaT();
       flux += rhs ;
     }
+#else
+#warning no rhs from model needs to be put into surface code via rhs.hh
+#endif
   }
 
   template< class Entity, class Point >
@@ -221,4 +225,44 @@ protected:
   double timeStepFactor_;
 
 };
+
+template< class FunctionSpace, class BulkGridPart, class SurfaceGridPart >
+struct CoupledHeatModel
+{
+  typedef CoupledHeatModel< FunctionSpace, BulkGridPart, SurfaceGridPart > ThisType;
+
+  typedef HeatModel< FunctionSpace, BulkGridPart > BulkModelType;
+  typedef HeatModel< FunctionSpace, SurfaceGridPart > SurfaceModelType;
+
+  typedef typename BulkModelType :: ProblemType BulkProblemType;
+  typedef typename SurfaceModelType :: ProblemType SurfaceProblemType;
+
+  CoupledHeatModel( const BulkProblemType &bulkProblem,
+		    const SurfaceProblemType& surfaceProblem,
+		    const BulkGridPart &bulkGridPart,
+		    const SurfaceGridPart &surfaceGridPart,
+		    const bool implicit )
+    : bulkModel_( bulkProblem, bulkGridPart, implicit ),
+      surfaceModel_( surfaceProblem, surfaceGridPart, implicit ),
+      alpha_( Dune::Fem::Parameter::getValue< double >( "coupled.alpha", 1 ) ),
+      beta_( Dune::Fem::Parameter::getValue< double >( "coupled.beta", 1 ) )
+  {}
+
+  BulkModelType &bulkModel() { return bulkModel_; }
+  SurfaceModelType &surfaceModel() { return surfaceModel_; }
+
+  const BulkModelType &bulkModel() const { return bulkModel_; }
+  const SurfaceModelType &surfaceModel() const { return surfaceModel_; }
+
+  double alpha() const { return alpha_; }
+  double beta() const { return beta_; }
+
+private:
+  BulkModelType bulkModel_;
+  SurfaceModelType surfaceModel_;
+
+  const double alpha_;
+  const double beta_;
+};
+
 #endif // #ifndef HEAT_MODEL_HH

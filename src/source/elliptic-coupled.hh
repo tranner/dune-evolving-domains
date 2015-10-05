@@ -13,6 +13,9 @@
 // EllipticOperator
 // ----------------
 
+#define ALPHA 1.0
+#define BETA 1.0
+
 //! [Class for elliptic operator]
 template< class DiscreteFunction, class Model, unsigned int cd >
 struct EllipticOperator
@@ -168,11 +171,13 @@ void EllipticOperator< DiscreteFunction, Model, cd >
 	  uLocal.jacobian( xLocal, duhx );
 	  model().diffusiveFlux( entity, xLocal, cuhx, duhx, aduhx );
 
+#if 0
 	  if( cd == 1 )
 	    {
-	      cuhx += 1.0 * uhx;
-#warning using beta = 1 here
+	      cuhx += BETA * uhx;
+#warning using beta = BETA here
 	    }
+#endif
 
 	  // multiply by quadrature weight
 	  cuhx *= weight;
@@ -182,6 +187,7 @@ void EllipticOperator< DiscreteFunction, Model, cd >
 	  wLocal.axpy( quadrature[ pt ], cuhx, aduhx );
 	}
 
+#if 0
       if( cd == 0 )
 	{
 	  const IntersectionIteratorType iEnd = dfSpace.gridPart().iend( entity );
@@ -207,8 +213,8 @@ void EllipticOperator< DiscreteFunction, Model, cd >
 		      // evaluate discrete function and flux
 		      typename LocalFunctionType :: RangeType uhx, cuhx;
 		      uLocal.evaluate( faceQuadrature.point( pt ), uhx );
-		      cuhx = 1.0 * uhx;
-#warning using alpha = 1 here
+		      cuhx = ALPHA * uhx;
+#warning using alpha = ALPHA here
 
 		      // multiply by quadrature weight
 		      cuhx *= weight;
@@ -219,6 +225,7 @@ void EllipticOperator< DiscreteFunction, Model, cd >
 		}
 	    }
 	}
+#endif
     }
 
   // communicate in parallel runs
@@ -292,8 +299,8 @@ void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
 
 	      if( cd == 1 )
 		{
-		  cphi += 1.0 * phi[ i ];
-#warning using beta = 1 here
+		  cphi += BETA * phi[ i ];
+#warning using beta = BETA here
 		}
 
 	      typename LocalFunctionType::JacobianRangeType adphi;
@@ -334,8 +341,8 @@ void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
 			{
 			  // evaluate coupling flux
 			  typename LocalFunctionType :: RangeType cphi;
-			  cphi = 1.0 * phi[ i ];
-#warning using alpha = 1 here
+			  cphi = ALPHA * phi[ i ];
+#warning using alpha = ALPHA here
 
 			  // add contribution to local matrix
 			  jLocal.column( i ).axpy( phi, cphi, weight );
