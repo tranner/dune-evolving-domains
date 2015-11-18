@@ -1,5 +1,4 @@
-set(SUBDIRS  evolving-domains)
-set(EXTRA_DIST  CMakeLists.txt)
+set(SUBDIRS  modules)
 # include not needed for CMake
 # include $(top_srcdir)/am/global-rules
 foreach(i ${SUBDIRS})

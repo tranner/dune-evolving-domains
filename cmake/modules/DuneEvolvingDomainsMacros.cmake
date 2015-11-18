@@ -1,1 +1,1 @@
-# File for module specific CMake tests.
+message(AUTHOR_WARNING "TODO: Implement module test.")
