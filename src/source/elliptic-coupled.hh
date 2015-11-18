@@ -157,19 +157,19 @@ void EllipticOperator< DiscreteFunction, Model, cd >
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 	{
 	  // obatain quadrature points in quadrature coords
-	  const LocalCoordType &xLocal = quadrature.point( pt );
+	  const LocalCoordType xLocal = quadrature.point( pt );
 	  const double weight = quadrature.weight( pt ) *
 	    geometry.integrationElement( xLocal );
 
 	  // evaluate discrete solutions and mass flux
 	  typename LocalFunctionType::RangeType uhx, cuhx;
-	  uLocal.evaluate( xLocal, uhx );
-	  model().source( entity, xLocal, uhx, cuhx );
+	  uLocal.evaluate( quadrature[ pt ], uhx );
+	  model().source( entity, quadrature[ pt ], uhx, cuhx );
 
 	  // evaluate discrete gradient and diffusive flux
 	  typename LocalFunctionType::JacobianRangeType duhx, aduhx;
-	  uLocal.jacobian( xLocal, duhx );
-	  model().diffusiveFlux( entity, xLocal, cuhx, duhx, aduhx );
+	  uLocal.jacobian( quadrature[ pt ], duhx );
+	  model().diffusiveFlux( entity, quadrature[ pt ], cuhx, duhx, aduhx );
 
 #if 0
 	  if( cd == 1 )
@@ -282,8 +282,8 @@ void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
 	    geometry.integrationElement( xLocal );
 
 	  // evaluate basis functions at quadrature points
-	  basisSet.evaluateAll( xLocal, phi );
-	  basisSet.jacobianAll( xLocal, dphi );
+	  basisSet.evaluateAll( quadrature[ pt ], phi );
+	  basisSet.jacobianAll( quadrature[ pt ], dphi );
 
 	  // get value for linearization
 	  typename LocalFunctionType :: RangeType ux;
@@ -295,7 +295,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
 	    {
 	      // evaluate fluxes
 	      typename LocalFunctionType::RangeType cphi;
-	      model().linSource( ux, entity, xLocal, phi[ i ], cphi );
+	      model().linSource( ux, entity, quadrature[ pt ], phi[ i ], cphi );
 
 	      if( cd == 1 )
 		{
@@ -304,7 +304,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
 		}
 
 	      typename LocalFunctionType::JacobianRangeType adphi;
-	      model().linDiffusiveFlux( ux, dux, entity, xLocal, phi[ i ], dphi[ i ], adphi );
+	      model().linDiffusiveFlux( ux, dux, entity, quadrature[ pt ], phi[ i ], dphi[ i ], adphi );
 
 	      // add contribution to local matrix
 	      jLocal.column( i ).axpy( phi, dphi, cphi, adphi, weight );

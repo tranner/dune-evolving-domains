@@ -117,7 +117,7 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                    const RangeType &value, 
                    RangeType &flux ) const
   {
-    const DomainType xGlobal = entity.geometry().global( x );
+    const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
     RangeType m;
     problem_.m(xGlobal,m);
     for (unsigned int i=0;i<flux.size();++i)
