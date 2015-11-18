@@ -1,3 +1,5 @@
 set(EXTRA_DIST  parameter *.dgf)
-# include not needed for CMake
-# include $(top_srcdir)/am/global-rules
+
+set(DGFFILES ball.dgf circle.dgf hemi-sphere.dgf sphere.dgf spiral-2d.dgf unitcube-1d.dgf unitcube-2d.dgf )
+
+dune_symlink_to_source_files(FILES parameter ${DGFFILES})
