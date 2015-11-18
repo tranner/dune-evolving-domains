@@ -41,7 +41,6 @@ struct CoupledGrid
   typedef typename BulkLeafGridViewType :: template Codim < 0 > :: Iterator ElementIteratorType;
   typedef typename ElementIteratorType :: Entity BulkEntityType;
   typedef typename BulkEntityType :: EntitySeed BulkEntitySeedType;
-  typedef typename BulkEntityType :: EntityPointer BulkEntityPointerType;
   typedef typename BulkLeafGridViewType :: IntersectionIterator IntersectionIteratorType;
 
   typedef typename HSurfaceGridType :: LeafGridView :: template Codim< 0 > :: Iterator :: Entity SurfaceEntityType;
@@ -194,7 +193,6 @@ struct CoupledGeoGridPart
       {
 	const BulkEntityType &entity = *it;
 	const BulkHostEntityType &hostEntity = gridEntity( entity );
-	const typename BulkHostEntityType :: EntityPointer hostEntityPtr( hostEntity );
 
 	for( unsigned int i = 0; i < coupledGrid_.maxSeedIndex(); ++i )
 	  {
@@ -202,9 +200,9 @@ struct CoupledGeoGridPart
 	      continue;
 
 	    const BulkHostEntitySeedType &otherHostSeed = surfaceBulkMap( i );
-	    const typename BulkHostEntityType :: EntityPointer &otherHostEntityPtr
-	      = coupledGrid_.bulkGrid().entityPointer( otherHostSeed );
-	    if( hostEntityPtr == otherHostEntityPtr )
+	    const BulkHostEntityType &otherHostEntity = coupledGrid_.bulkGrid().entity( otherHostSeed );
+
+	    if( hostEntity == otherHostEntity )
 	      {
 		map_[ i ] = entity.seed();
 	      }
