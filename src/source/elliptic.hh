@@ -206,13 +206,13 @@ void EllipticOperator< DiscreteFunction, Model >
 
         // compute mass contribution (studying linear case so linearizing around zero) 
         RangeType avu( 0 );
-        model().source( entity, quadrature[ pt ], vu, avu );
+        model().source( entity, x, vu, avu );
         avu *= weight;
         // add to local functional wLocal.axpy( quadrature[ pt ], avu );
 
         JacobianRangeType adu( 0 );
         // apply diffusive flux 
-        model().diffusiveFlux( entity, quadrature[ pt ], vu, du, adu );
+        model().diffusiveFlux( entity, x, vu, du, adu );
         adu *= weight;
 
         // add to local function 
@@ -246,7 +246,7 @@ void EllipticOperator< DiscreteFunction, Model >
 		  // evaluate boundary flux
 		  RangeType vu, avu;
 		  uLocal.evaluate( quadInside[ pt ], vu );
-		  model().boundaryFlux( entity, quadInside[ pt ], vu, avu );
+		  model().boundaryFlux( entity, coordinate( quadInside[ pt ] ), vu, avu );
 
 		  // multiply by quadrature weight
 		  avu *= weight;
@@ -323,10 +323,10 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
       for( unsigned int localCol = 0; localCol < numBasisFunctions; ++localCol )
       {
         // if mass terms or right hand side is present 
-        model().linSource( u0, entity, quadrature[ pt ], phi[ localCol ], aphi );
+        model().linSource( u0, entity, x, phi[ localCol ], aphi );
 
         // if gradient term is present 
-        model().linDiffusiveFlux( u0, jacU0, entity, quadrature[ pt ], phi[ localCol ], dphi[ localCol ], adphi );
+        model().linDiffusiveFlux( u0, jacU0, entity, x, phi[ localCol ], dphi[ localCol ], adphi );
 
         // get column object and call axpy method 
         jLocal.column( localCol ).axpy( phi, dphi, aphi, adphi, weight );
@@ -369,7 +369,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
 		  for( unsigned int localCol = 0; localCol < numBasisFunctions; ++localCol )
 		    {
 		      // if boundary flux term is present
-		      model().linBoundaryFlux( u0, entity, quadInside[ pt ], phi[ localCol ], aphi );
+		      model().linBoundaryFlux( u0, entity, coordinate( quadInside[ pt ] ), phi[ localCol ], aphi );
 
 		      // get column object and call axpy method
 		      jLocal.column( localCol ).axpy( phi, aphi, weight );
