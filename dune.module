@@ -7,4 +7,4 @@ Module: dune-evolving-domains
 Version: 0.1
 Maintainer: T.Ranner@leeds.ac.uk
 #depending on
-Depends: dune-common dune-geometry dune-grid dune-alugrid dune-istl dune-localfunctions dune-fem
+Depends: dune-common dune-geometry dune-grid dune-istl dune-localfunctions dune-fem
