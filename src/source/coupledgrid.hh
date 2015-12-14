@@ -166,8 +166,8 @@ struct CoupledGeoGridPart
 		      const BulkGeoGridPartType &bulkGridPart,
 		      const SurfaceGeoGridPartType &surfaceGridPart )
     : coupledGrid_( coupledGrid ),
-      bulkGridPart_( bulkGridPart_ ),
-      surfaceGridPart_( surfaceGridPart_ ),
+      bulkGridPart_( bulkGridPart ),
+      surfaceGridPart_( surfaceGridPart ),
       map_( coupledGrid_.maxSeedIndex() )
   {
     BulkIteratorType end = bulkGridPart.template end< 0 >();
@@ -195,6 +195,16 @@ struct CoupledGeoGridPart
   {
     const unsigned int idx = coupledGrid_.seedIndex( gridEntity( entity ) );
     return map_[ idx ];
+  }
+
+  const BulkGeoGridPartType &bulkGridPart() const
+  {
+    return bulkGridPart_;
+  }
+
+  const SurfaceGeoGridPartType &surfaceGridPart() const
+  {
+    return surfaceGridPart_;
   }
 
 protected:
