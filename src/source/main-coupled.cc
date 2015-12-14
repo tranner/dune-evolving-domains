@@ -24,9 +24,9 @@
 
 // include header of adaptive scheme
 #include "coupledgrid.hh"
-#include "heat.hh"
-#include "coupledheatscheme.hh"
+#include "coupledheat.hh"
 #include "heatmodel.hh"
+#include "coupledheatscheme.hh"
 
 // assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class CoupledGridType >
@@ -72,26 +72,36 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
   SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
 #endif
+
   // choose problem
   typedef BulkHeatProblem< FunctionSpaceType > BulkProblemType;
   BulkProblemType bulkProblem( timeProvider );
   typedef SurfaceHeatProblem< FunctionSpaceType > SurfaceProblemType;
   SurfaceProblemType surfaceProblem( timeProvider );
+  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
+  ExchangeProblemType exchangeProblem( timeProvider );
 
   // type of the mathematical model used
-  typedef CoupledHeatModel< FunctionSpaceType, BulkGridPartType, SurfaceGridPartType >
-    CoupledHeatModelType;
-  CoupledHeatModelType coupledImplicitModel( bulkProblem, surfaceProblem,
-					     bulkGridPart, surfaceGridPart, true );
-  CoupledHeatModelType coupledExplicitModel( bulkProblem, surfaceProblem,
-					     bulkGridPart, surfaceGridPart, false );
+  using BulkHeatModelType = HeatModel< FunctionSpaceType, BulkGridPartType >;
+  using SurfaceHeatModelType = HeatModel< FunctionSpaceType, SurfaceGridPartType >;
+
+  BulkHeatModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
+  BulkHeatModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
+  SurfaceHeatModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart, true );
+  SurfaceHeatModelType surfaceExplicitModel( surfaceProblem, surfaceGridPart, false );
+  SurfaceHeatModelType exchangeImplicitModel( exchangeProblem, surfaceGridPart, true );
 
   // create adaptive scheme
-  typedef CoupledHeatScheme< CoupledHeatModelType, CoupledHeatModelType,
+  typedef CoupledHeatScheme< BulkHeatModelType, BulkHeatModelType,
+			     SurfaceHeatModelType, SurfaceHeatModelType,
+			     SurfaceHeatModelType,
 			     CoupledGeoGridPartType > SchemeType;
-  SchemeType scheme( bulkGridPart, surfaceGridPart,
-		     coupledImplicitModel, coupledExplicitModel,
-		     coupledGeoGridPart, step );
+
+  typename SchemeType :: BulkFemSchemeHolderType bulkScheme( bulkGridPart, bulkImplicitModel, bulkExplicitModel );
+  typename SchemeType :: SurfaceFemSchemeHolderType surfaceScheme( surfaceGridPart, surfaceImplicitModel, surfaceExplicitModel );
+
+  SchemeType scheme( bulkScheme, surfaceScheme,
+		     exchangeImplicitModel, coupledGeoGridPart, step );
 
   typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
   BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );

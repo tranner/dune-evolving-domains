@@ -13,342 +13,464 @@
 // EllipticOperator
 // ----------------
 
-#define ALPHA 1.0
-#define BETA 1.0
+//! [Class for mixing operator]
+template< class DomainFunction, class RangeFunction, class Model, class CoupledGrid,
+	  int dimDiff = DomainFunction :: GridType :: dimension
+	  - RangeFunction :: GridType :: dimension >
+  struct MixingOperator;
 
-//! [Class for elliptic operator]
-template< class DiscreteFunction, class Model, unsigned int cd >
-struct EllipticOperator
-  : public virtual Dune::Fem::Operator< DiscreteFunction >
+template< class DomainFunction, class RangeFunction, class Model, class CoupledGrid >
+struct MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
+  : public virtual Dune :: Fem :: Operator< DomainFunction, RangeFunction >
 {
-  typedef DiscreteFunction DiscreteFunctionType;
-  typedef Model ModelType;
+  using BulkDiscreteFunctionType = DomainFunction;
+  using SurfaceDiscreteFunctionType = RangeFunction;
+  using ModelType = Model;
+  using CoupledGridType = CoupledGrid;
 
 protected:
 
-  typedef typename DiscreteFunctionType::DiscreteFunctionSpaceType DiscreteFunctionSpaceType;
-  typedef typename DiscreteFunctionType::LocalFunctionType LocalFunctionType;
-  typedef typename LocalFunctionType::RangeType RangeType;
-  typedef typename LocalFunctionType::JacobianRangeType JacobianRangeType;
-
-  typedef typename DiscreteFunctionSpaceType::IteratorType IteratorType;
-  typedef typename IteratorType::Entity       EntityType;
-  typedef typename EntityType::Geometry       GeometryType;
-
-  typedef typename DiscreteFunctionType::DomainType GlobalCoordType;
-
-  typedef typename DiscreteFunctionSpaceType::GridPartType  GridPartType;
-  typedef typename GridPartType :: IntersectionIteratorType IntersectionIteratorType;
-  typedef typename IntersectionIteratorType :: Intersection IntersectionType;
-  typedef typename IntersectionType :: Geometry IntersectionGeometryType;
-
-  typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
-  typedef Dune::Fem::CachingQuadrature< GridPartType, 0 > QuadratureType;
-  typedef typename QuadratureType::CoordinateType LocalCoordType;
+  // typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
+  typedef Dune::Fem::CachingQuadrature< typename CoupledGridType ::  SurfaceGeoGridPartType, 0 > QuadratureType;
+  // typedef typename QuadratureType::CoordinateType LocalCoordType;
 
 public:
-  EllipticOperator ( const ModelType &model )
-    : model_( model ), codim( cd )
+  MixingOperator( const ModelType &model, const CoupledGridType &coupledGrid )
+    : model_( model ), coupledGrid_( coupledGrid )
   {}
-
-  // prepare the solution vector
-  template <class Function>
-  void prepare( const Function &func, DiscreteFunctionType &u )
-  {
-    // nothing to do -- closed surfaces only
-  }
-
 
   //! application operator
-  virtual void
-  operator() ( const DiscreteFunctionType &u, DiscreteFunctionType &w ) const;
+  virtual void operator() ( const BulkDiscreteFunctionType &u,
+			    SurfaceDiscreteFunctionType &w ) const;
 
 protected:
-  const ModelType &model() const { return model_; }
+  const ModelType& model() const { return model_; }
+  const CoupledGridType& coupledGrid() const { return coupledGrid_; }
 
 private:
-  ModelType model_;
-
-protected:
-  const unsigned int codim;
+  const ModelType &model_;
+  const CoupledGridType &coupledGrid_;
 };
 
-// DifferentiableEllipticOperator
-// ------------------------------
-
-//! [Class for linearizable elliptic operator]
-template< class JacobianOperator, class Model, unsigned int cd >
-struct DifferentiableEllipticOperator
-  : public EllipticOperator< typename JacobianOperator :: DomainFunctionType,
-			     Model, cd >,
-    public Dune :: Fem :: DifferentiableOperator< JacobianOperator >
+template< class DomainFunction, class RangeFunction, class Model, class CoupledGrid >
+struct MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
+  : public virtual Dune :: Fem :: Operator< DomainFunction, RangeFunction >
 {
-  typedef EllipticOperator< typename JacobianOperator::DomainFunctionType, Model, cd > BaseType;
-
-  typedef JacobianOperator JacobianOperatorType;
-
-  typedef typename BaseType::DiscreteFunctionType DiscreteFunctionType;
-  typedef typename BaseType::ModelType ModelType;
+  using SurfaceDiscreteFunctionType = DomainFunction;
+  using BulkDiscreteFunctionType = RangeFunction;
+  using ModelType = Model;
+  using CoupledGridType = CoupledGrid;
 
 protected:
-  typedef typename BaseType::DiscreteFunctionSpaceType DiscreteFunctionSpaceType;
-  typedef typename BaseType::LocalFunctionType LocalFunctionType;
 
-  typedef typename BaseType::IteratorType IteratorType;
-  typedef typename BaseType::EntityType EntityType;
-  typedef typename BaseType::GeometryType GeometryType;
-
-  typedef typename BaseType::GridPartType GridPartType;
-  typedef typename BaseType::IntersectionIteratorType IntersectionIteratorType;
-  typedef typename BaseType::IntersectionType IntersectionType;
-  typedef typename BaseType::IntersectionGeometryType IntersectionGeometryType;
-
-  typedef typename BaseType::GlobalCoordType GlobalCoordType;
-  typedef typename BaseType::LocalCoordType LocalCoordType;
-
-  typedef typename BaseType::QuadratureType QuadratureType;
-  typedef typename BaseType::FaceQuadratureType FaceQuadratureType;
+  // typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
+  typedef Dune::Fem::CachingQuadrature< typename CoupledGridType ::  SurfaceGeoGridPartType, 0 > QuadratureType;
+  // typedef typename QuadratureType::CoordinateType LocalCoordType;
 
 public:
-  //! constructor
-  DifferentiableEllipticOperator( const ModelType &model )
-    : BaseType( model )
+  MixingOperator( const ModelType &model, const CoupledGridType &coupledGrid )
+    : model_( model ), coupledGrid_( coupledGrid )
   {}
 
-  //! method to setup the jacobian of the operator for storage in a matrix
-  void jacobian ( const DiscreteFunctionType &u, JacobianOperatorType &jOp ) const;
+  //! application operator
+  virtual void operator() ( const SurfaceDiscreteFunctionType &u,
+			    BulkDiscreteFunctionType &w ) const;
 
 protected:
-  using BaseType::model;
-  using BaseType::codim;
+  const ModelType& model() const { return model_; }
+  const CoupledGridType& coupledGrid() const { return coupledGrid_; }
+
+private:
+  const ModelType &model_;
+  const CoupledGridType &coupledGrid_;
 };
 
 // Implementation of EllipticOperator
 // ----------------------------------
 
-template< class DiscreteFunction, class Model, unsigned int cd >
-void EllipticOperator< DiscreteFunction, Model, cd >
-  ::operator() ( const DiscreteFunctionType &u, DiscreteFunctionType &w ) const
+template< class DomainFunction, class RangeFunction,
+	  class Model, class CoupledGrid >
+void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
+::operator() ( const BulkDiscreteFunctionType &uBulk,
+	       SurfaceDiscreteFunctionType &wSurf ) const
 {
-  // clear destination
-  w.clear();
+  wSurf.clear();
 
-  // get discrete function space
-  const DiscreteFunctionSpaceType &dfSpace = w.space();
+  // clear destination
+  const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
+  const auto& bulkGridPart = coupledGrid().bulkGridPart();
 
   // iterate over grid
-  const IteratorType end = dfSpace.end();
-  for( IteratorType it = dfSpace.begin(); it != end; ++it )
-    {
-      // get entity
-      const EntityType &entity = *it;
-      const GeometryType &geometry = entity.geometry();
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  {
+    const auto& geometry = entity.geometry();
 
-      // get local representation of the discrete functions
-      const LocalFunctionType uLocal = u.localFunction( entity );
-      LocalFunctionType wLocal = w.localFunction( entity );
+    // find bulk entity
+    const auto seed = coupledGrid().surfaceBulkMap( entity );
+    const auto bulkEntity = bulkGridPart.entity( seed );
+    const auto bulkGeometry = bulkEntity.geometry();
 
-      // obtain quadrature order
-      const int quadOrder = uLocal.order() + wLocal.order();
+    // get local representation of the discrete functions
+    const auto uBulkLocal = uBulk.localFunction( bulkEntity );
+    auto wSurfLocal = wSurf.localFunction( entity );
 
-      QuadratureType quadrature( entity, quadOrder );
-      size_t numQuadraturePoints = quadrature.nop();
+    const int quadOrder = uBulkLocal.order() + wSurfLocal.order();
+    QuadratureType quadrature( entity, quadOrder );
+    unsigned int numQuadraturePoints = quadrature.nop();
 
-      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
-	{
-	  // obatain quadrature points in quadrature coords
-	  const LocalCoordType xLocal = quadrature.point( pt );
-	  const double weight = quadrature.weight( pt ) *
-	    geometry.integrationElement( xLocal );
+    for( unsigned int pt = 0; pt < numQuadraturePoints; ++pt )
+      {
+	const auto xLocal = quadrature.point( pt );
+	const double weight = quadrature.weight( pt ) * geometry.integrationElement( xLocal );
 
-	  // evaluate discrete solutions and mass flux
-	  typename LocalFunctionType::RangeType uhx, cuhx;
-	  uLocal.evaluate( quadrature[ pt ], uhx );
-	  model().source( entity, quadrature[ pt ], uhx, cuhx );
+	const auto xGlobal = geometry.global( xLocal );
+	const auto xBulkLocal = bulkGeometry.local( xGlobal );
 
-	  // evaluate discrete gradient and diffusive flux
-	  typename LocalFunctionType::JacobianRangeType duhx, aduhx;
-	  uLocal.jacobian( quadrature[ pt ], duhx );
-	  model().diffusiveFlux( entity, quadrature[ pt ], cuhx, duhx, aduhx );
+	// evaluate local functions
+	typename SurfaceDiscreteFunctionType :: RangeType cSurfx;
+	typename BulkDiscreteFunctionType :: RangeType uBulkx;
+	uBulkLocal.evaluate( xBulkLocal, uBulkx );
 
-#if 0
-	  if( cd == 1 )
-	    {
-	      cuhx += BETA * uhx;
-#warning using beta = BETA here
-	    }
-#endif
+	// evaluate flux
+	model().boundaryFlux( bulkEntity, xBulkLocal, uBulkx, cSurfx );
 
-	  // multiply by quadrature weight
-	  cuhx *= weight;
-	  aduhx *= weight;
+	// multiply by quadrature weight
+	cSurfx *= weight;
 
-	  // add cuhx * phi and aduhx \cdot grad phi_i to wLocal[ i ]
-	  wLocal.axpy( quadrature[ pt ], cuhx, aduhx );
-	}
-
-#if 0
-      if( cd == 0 )
-	{
-	  const IntersectionIteratorType iEnd = dfSpace.gridPart().iend( entity );
-	  for( IntersectionIteratorType iIt = dfSpace.gridPart().ibegin( entity );
-	       iIt != iEnd; ++ iIt )
-	    {
-	      if( iIt->boundary() )
-		{
-		  // get intersection
-		  const IntersectionType &intersection = *iIt;
-		  const IntersectionGeometryType &intersectionGeometry = intersection.geometry();
-
-		  FaceQuadratureType faceQuadrature( dfSpace.gridPart(), intersection,
-						     quadOrder, FaceQuadratureType::INSIDE );
-		  size_t numFaceQuadraturePoints = faceQuadrature.nop();
-
-		  for( size_t pt = 0; pt < numFaceQuadraturePoints; ++pt )
-		    {
-		      // obtain quadrature point
-		      const typename FaceQuadratureType :: LocalCoordinateType &xQuad = faceQuadrature.localPoint( pt );
-		      const double weight = faceQuadrature.weight( pt ) * intersectionGeometry.integrationElement( xQuad );
-
-		      // evaluate discrete function and flux
-		      typename LocalFunctionType :: RangeType uhx, cuhx;
-		      uLocal.evaluate( faceQuadrature.point( pt ), uhx );
-		      cuhx = ALPHA * uhx;
-#warning using alpha = ALPHA here
-
-		      // multiply by quadrature weight
-		      cuhx *= weight;
-
-		      // add cuhx * phi to wLocal[ i ]
-		      wLocal.axpy( faceQuadrature[ pt ], cuhx );
-		    }
-		}
-	    }
-	}
-#endif
-    }
+	// add to rhs
+	wSurfLocal.axpy( xLocal, cSurfx );
+      }
+  }
 
   // communicate in parallel runs
-  w.communicate();
+  wSurf.communicate();
 }
+
+template< class DomainFunction, class RangeFunction,
+	  class Model, class CoupledGrid >
+void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
+::operator() ( const SurfaceDiscreteFunctionType &uSurf,
+	       BulkDiscreteFunctionType &wBulk ) const
+{
+  wBulk.clear();
+
+  // clear destination
+  const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
+  const auto& bulkGridPart = coupledGrid().bulkGridPart();
+
+  // iterate over grid
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  {
+    const auto& geometry = entity.geometry();
+
+    // find bulk entity
+    const auto seed = coupledGrid().surfaceBulkMap( entity );
+    const auto bulkEntity = bulkGridPart.entity( seed );
+    const auto bulkGeometry = bulkEntity.geometry();
+
+    // get local representation of the discrete functions
+    const auto uSurfLocal = uSurf.localFunction( entity );
+    auto wBulkLocal = wBulk.localFunction( bulkEntity );
+
+    const int quadOrder = uSurfLocal.order() + wBulkLocal.order();
+    QuadratureType quadrature( entity, quadOrder );
+    unsigned int numQuadraturePoints = quadrature.nop();
+
+    for( unsigned int pt = 0; pt < numQuadraturePoints; ++pt )
+      {
+	const auto xLocal = quadrature.point( pt );
+	const double weight = quadrature.weight( pt ) * geometry.integrationElement( xLocal );
+
+	const auto xGlobal = geometry.global( xLocal );
+	const auto xBulkLocal = bulkGeometry.local( xGlobal );
+
+	// evaluate local functions
+	typename SurfaceDiscreteFunctionType :: RangeType uSurfx;
+	uSurfLocal.evaluate( xLocal, uSurfx );
+	typename BulkDiscreteFunctionType :: RangeType cBulkx;
+
+	// evaluate flux
+	model().boundaryFlux( entity, xLocal, uSurfx, cBulkx );
+
+	// multiply by quadrature weight
+	cBulkx *= weight;
+
+	// add to rhs
+	wBulkLocal.axpy( xBulkLocal, cBulkx );
+      }
+  }
+
+  // communicate in parallel runs
+  wBulk.communicate();
+}
+
+
+// DifferentiableEllipticOperator
+// ------------------------------
+
+//! [Class for linearizable mixing operator]
+template< class JacobianOperator, class Model, class CoupledGrid,
+	  int dimDiff = JacobianOperator :: DomainFunctionType :: GridType :: dimension
+	  - JacobianOperator :: RangeFunctionType :: GridType :: dimension >
+  struct DifferentiableMixingOperator;
+
+template< class JacobianOperator, class Model, class CoupledGrid >
+struct DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
+  : public MixingOperator< typename JacobianOperator :: DomainFunctionType,
+			   typename JacobianOperator :: RangeFunctionType,
+			   Model, CoupledGrid, 1 >,
+    public Dune :: Fem :: DifferentiableOperator< JacobianOperator >
+{
+  using BaseType = MixingOperator< typename JacobianOperator :: DomainFunctionType,
+				   typename JacobianOperator :: RangeFunctionType,
+				   Model, CoupledGrid >;
+
+  using JacobianOperatorType = JacobianOperator;
+
+  using ModelType = typename BaseType :: ModelType;
+  using CoupledGridType = typename BaseType :: CoupledGridType;
+
+  using BulkDiscreteFunctionType = typename BaseType :: BulkDiscreteFunctionType;
+  using SurfaceDiscreteFunctionType = typename BaseType :: SurfaceDiscreteFunctionType;
+
+  using QuadratureType = typename BaseType :: QuadratureType;
+
+public:
+  //! constructor
+  DifferentiableMixingOperator( const ModelType& model, const CoupledGridType& coupledGrid )
+    : BaseType( model, coupledGrid )
+  {}
+
+  //! method to setup the jacobian of the operator for storage in a matrix
+  void jacobian ( const BulkDiscreteFunctionType &u, JacobianOperatorType &jOp ) const;
+
+protected:
+  using BaseType::model;
+  using BaseType::coupledGrid;
+};
+
+template< class JacobianOperator, class Model, class CoupledGrid >
+struct DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
+  : public MixingOperator< typename JacobianOperator :: DomainFunctionType,
+			   typename JacobianOperator :: RangeFunctionType,
+			   Model, CoupledGrid, -1 >,
+    public Dune :: Fem :: DifferentiableOperator< JacobianOperator >
+{
+  using BaseType = MixingOperator< typename JacobianOperator :: DomainFunctionType,
+				   typename JacobianOperator :: RangeFunctionType,
+				   Model, CoupledGrid >;
+
+  using JacobianOperatorType = JacobianOperator;
+
+  using ModelType = typename BaseType :: ModelType;
+  using CoupledGridType = typename BaseType :: CoupledGridType;
+
+  using SurfaceDiscreteFunctionType = typename BaseType :: SurfaceDiscreteFunctionType;
+  using BulkDiscreteFunctionType = typename BaseType :: BulkDiscreteFunctionType;
+
+  using QuadratureType = typename BaseType :: QuadratureType;
+
+public:
+  //! constructor
+  DifferentiableMixingOperator( const ModelType& model, const CoupledGridType& coupledGrid )
+    : BaseType( model, coupledGrid )
+  {}
+
+  //! method to setup the jacobian of the operator for storage in a matrix
+  void jacobian ( const SurfaceDiscreteFunctionType &u, JacobianOperatorType &jOp ) const;
+
+protected:
+  using BaseType::model;
+  using BaseType::coupledGrid;
+};
 
 // Implementation of DifferentiableEllipticOperator
 // ------------------------------------------------
 
-template < class JacobianOperator, class Model, unsigned int cd >
-void DifferentiableEllipticOperator< JacobianOperator, Model, cd >
-::jacobian ( const DiscreteFunctionType &u, JacobianOperator &jOp ) const
+template < class JacobianOperator, class Model, class CoupledGrid >
+void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
+::jacobian ( const BulkDiscreteFunctionType &u, JacobianOperator &jOp ) const
 {
   typedef typename JacobianOperator::LocalMatrixType LocalMatrixType;
-  typedef typename DiscreteFunctionSpaceType::BasisFunctionSetType BasisFunctionSetType;
 
-  // get discrete function space
-  const DiscreteFunctionSpaceType &dfSpace = u.space();
+  using BulkDiscreteFunctionSpaceType = typename BulkDiscreteFunctionType :: DiscreteFunctionSpaceType;
+  using SurfaceDiscreteFunctionSpaceType = typename SurfaceDiscreteFunctionType :: DiscreteFunctionSpaceType;
 
+  // get discrete function spaces
+  const auto& domainSpace = jOp.domainSpace();
+  const auto& rangeSpace = jOp.rangeSpace();
+
+  // get grid parts
+  const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
+  const auto& bulkGridPart = coupledGrid().bulkGridPart();
   // set up matrix stencil
-  Dune :: Fem :: DiagonalStencil< DiscreteFunctionSpaceType, DiscreteFunctionSpaceType > stencil( dfSpace, dfSpace );
+  Dune :: Fem :: Stencil< BulkDiscreteFunctionSpaceType, SurfaceDiscreteFunctionSpaceType > stencil( domainSpace, rangeSpace );
+  // iterate over grid
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  {
+    const auto& geometry = entity.geometry();
+
+    // find bulk entity
+    const auto seed = coupledGrid().surfaceBulkMap( entity );
+    const auto bulkEntity = bulkGridPart.entity( seed );
+
+    stencil.fill( bulkEntity, entity );
+  }
+
   jOp.reserve( stencil );
   jOp.clear();
 
   // set up basis function storage
-  const int blockSize = dfSpace.localBlockSize; // is equal to 1 for scalar functions
-  std::vector< typename LocalFunctionType::RangeType > phi( dfSpace.blockMapper().maxNumDofs()*blockSize );
-  std::vector< typename LocalFunctionType::JacobianRangeType > dphi( dfSpace.blockMapper().maxNumDofs()*blockSize );
+  const int domainBlockSize = domainSpace.localBlockSize; // is equal to 1 for scalar functions
+  std::vector< typename BulkDiscreteFunctionType::RangeType > domainPhi( domainSpace.blockMapper().maxNumDofs()*domainBlockSize );
+  const int rangeBlockSize = rangeSpace.localBlockSize; // is equal to 1 for scalar functions
+  std::vector< typename SurfaceDiscreteFunctionType::RangeType > rangePhi( rangeSpace.blockMapper().maxNumDofs()*rangeBlockSize );
 
   // loop over grid
-  const IteratorType end = dfSpace.end();
-  for( IteratorType it = dfSpace.begin(); it != end; ++it )
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
     {
-      // find entity
-      const EntityType &entity = *it;
-      const GeometryType &geometry = entity.geometry();
+      // find geometry
+      const auto& geometry = entity.geometry();
+
+      // find bulk entity
+      const auto seed = coupledGrid().surfaceBulkMap( entity );
+      const auto bulkEntity = bulkGridPart.entity( seed );
+      const auto bulkGeometry = bulkEntity.geometry();
 
       // construct local representations of data
-      const LocalFunctionType uLocal = u.localFunction( entity );
-      LocalMatrixType jLocal = jOp.localMatrix( entity, entity );
+      const auto uLocal = u.localFunction( bulkEntity );
+      auto jLocal = jOp.localMatrix( bulkEntity, entity );
 
       // find local basis functions
-      const BasisFunctionSetType &basisSet = jLocal.domainBasisFunctionSet();
-      const unsigned int numBasisFunctions = basisSet.size();
+      const auto& domainBasisSet = jLocal.domainBasisFunctionSet();
+      const unsigned int numDomainBasisFunctions = domainBasisSet.size();
+      const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
+      const unsigned int numRangeBasisFunctions = rangeBasisSet.size();
 
       // perform quadrature loop
-      QuadratureType quadrature( entity, 2*dfSpace.order() );
+      QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
       size_t numQuadraturePoints = quadrature.nop();
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 	{
 	  // obatain quadrature points in quadrature coords
-	  const LocalCoordType &xLocal = quadrature.point( pt );
+	  const auto xLocal = quadrature.point( pt );
 	  const double weight = quadrature.weight( pt ) *
 	    geometry.integrationElement( xLocal );
 
+	  const auto xGlobal = geometry.global( xLocal );
+	  const auto xBulkLocal = bulkGeometry.local( xGlobal );
+
 	  // evaluate basis functions at quadrature points
-	  basisSet.evaluateAll( quadrature[ pt ], phi );
-	  basisSet.jacobianAll( quadrature[ pt ], dphi );
+	  domainBasisSet.evaluateAll( xBulkLocal, domainPhi );
+	  rangeBasisSet.evaluateAll( quadrature[ pt ], rangePhi );
 
 	  // get value for linearization
-	  typename LocalFunctionType :: RangeType ux;
-	  typename LocalFunctionType :: JacobianRangeType dux;
-	  uLocal.evaluate( quadrature[ pt ], ux );
-	  uLocal.jacobian( quadrature[ pt ], dux );
+	  typename BulkDiscreteFunctionType :: RangeType ux;
+	  uLocal.evaluate( xBulkLocal, ux );
 
-	  for( unsigned int i = 0; i < numBasisFunctions; ++i )
+	  for( unsigned int i = 0; i < numDomainBasisFunctions; ++i )
 	    {
 	      // evaluate fluxes
-	      typename LocalFunctionType::RangeType cphi;
-	      model().linSource( ux, entity, quadrature[ pt ], phi[ i ], cphi );
-
-	      if( cd == 1 )
-		{
-		  cphi += BETA * phi[ i ];
-#warning using beta = BETA here
-		}
-
-	      typename LocalFunctionType::JacobianRangeType adphi;
-	      model().linDiffusiveFlux( ux, dux, entity, quadrature[ pt ], phi[ i ], dphi[ i ], adphi );
+	      typename SurfaceDiscreteFunctionType :: RangeType cphi;
+	      model().linBoundaryFlux( ux, bulkEntity, xBulkLocal, domainPhi[ i ], cphi );
 
 	      // add contribution to local matrix
-	      jLocal.column( i ).axpy( phi, dphi, cphi, adphi, weight );
+	      jLocal.column( i ).axpy( rangePhi, cphi, weight );
 	    }
 	}
+    }
+  jOp.communicate();
+}
 
-      if( cd == 0 )
-	{ // then coupling terms if bulk surface terms
-	  const IntersectionIteratorType iEnd = dfSpace.gridPart().iend( entity );
-	  for( IntersectionIteratorType iIt = dfSpace.gridPart().ibegin( entity );
-	       iIt != iEnd; ++iIt )
+template < class JacobianOperator, class Model, class CoupledGrid >
+void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
+::jacobian ( const SurfaceDiscreteFunctionType &u, JacobianOperator &jOp ) const
+{
+  typedef typename JacobianOperator::LocalMatrixType LocalMatrixType;
+
+  using SurfaceDiscreteFunctionSpaceType = typename SurfaceDiscreteFunctionType :: DiscreteFunctionSpaceType;
+  using BulkDiscreteFunctionSpaceType = typename BulkDiscreteFunctionType :: DiscreteFunctionSpaceType;
+
+  // get discrete function spaces
+  const auto& domainSpace = jOp.domainSpace();
+  const auto& rangeSpace = jOp.rangeSpace();
+
+  // get grid parts
+  const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
+  const auto& bulkGridPart = coupledGrid().bulkGridPart();
+  // set up matrix stencil
+  Dune :: Fem :: Stencil< SurfaceDiscreteFunctionSpaceType, BulkDiscreteFunctionSpaceType > stencil( domainSpace, rangeSpace );
+  // iterate over grid
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  {
+    const auto& geometry = entity.geometry();
+
+    // find bulk entity
+    const auto seed = coupledGrid().surfaceBulkMap( entity );
+    const auto bulkEntity = bulkGridPart.entity( seed );
+
+    stencil.fill( entity, bulkEntity );
+  }
+
+  jOp.reserve( stencil );
+  jOp.clear();
+
+  // set up basis function storage
+  const int domainBlockSize = domainSpace.localBlockSize; // is equal to 1 for scalar functions
+  std::vector< typename BulkDiscreteFunctionType::RangeType > domainPhi( domainSpace.blockMapper().maxNumDofs()*domainBlockSize );
+  const int rangeBlockSize = rangeSpace.localBlockSize; // is equal to 1 for scalar functions
+  std::vector< typename SurfaceDiscreteFunctionType::RangeType > rangePhi( rangeSpace.blockMapper().maxNumDofs()*rangeBlockSize );
+
+  // loop over grid
+  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+    {
+      // find geometry
+      const auto& geometry = entity.geometry();
+
+      // find bulk entity
+      const auto seed = coupledGrid().surfaceBulkMap( entity );
+      const auto bulkEntity = bulkGridPart.entity( seed );
+      const auto bulkGeometry = bulkEntity.geometry();
+
+      // construct local representations of data
+      const auto uLocal = u.localFunction( entity );
+      auto jLocal = jOp.localMatrix( entity, bulkEntity );
+
+      // find local basis functions
+      const auto& domainBasisSet = jLocal.domainBasisFunctionSet();
+      const unsigned int numDomainBasisFunctions = domainBasisSet.size();
+      const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
+      const unsigned int numRangeBasisFunctions = rangeBasisSet.size();
+
+      // perform quadrature loop
+      QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
+      size_t numQuadraturePoints = quadrature.nop();
+      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
+	{
+	  // obatain quadrature points in quadrature coords
+	  const auto xLocal = quadrature.point( pt );
+	  const double weight = quadrature.weight( pt ) *
+	    geometry.integrationElement( xLocal );
+
+	  const auto xGlobal = geometry.global( xLocal );
+	  const auto xBulkLocal = bulkGeometry.local( xGlobal );
+
+	  // evaluate basis functions at quadrature points
+	  domainBasisSet.evaluateAll( quadrature[ pt ], domainPhi );
+	  rangeBasisSet.evaluateAll( xBulkLocal, rangePhi );
+
+	  // get value for linearization
+	  typename SurfaceDiscreteFunctionType :: RangeType ux;
+	  uLocal.evaluate( quadrature[ pt ], ux );
+
+	  for( unsigned int i = 0; i < numDomainBasisFunctions; ++i )
 	    {
-	      if( iIt->boundary() )
-		{
-		  // get intersection
-		  const IntersectionType &intersection = *iIt;
-		  const IntersectionGeometryType &intersectionGeometry = intersection.geometry();
+	      // evaluate fluxes
+	      typename BulkDiscreteFunctionType :: RangeType cphi;
+	      model().linBoundaryFlux( ux, entity, xLocal, domainPhi[ i ], cphi );
 
-		  FaceQuadratureType faceQuadrature( dfSpace.gridPart(), intersection,
-						     2.0*dfSpace.order(),
-						     FaceQuadratureType::INSIDE );
-		  size_t numFaceQuadraturePoints = faceQuadrature.nop();
-
-		  for( size_t pt = 0; pt < numFaceQuadraturePoints; ++pt )
-		    {
-		      // obtain quadrature point
-		      const typename FaceQuadratureType :: LocalCoordinateType &xQuad = faceQuadrature.localPoint( pt );
-		      const double weight = faceQuadrature.weight( pt ) * intersectionGeometry.integrationElement( xQuad );
-
-		      // evaluate basis functions at quadrature  points
-		      basisSet.evaluateAll( faceQuadrature.point( pt ), phi );
-
-		      for( unsigned int i = 0; i < numBasisFunctions; ++i )
-			{
-			  // evaluate coupling flux
-			  typename LocalFunctionType :: RangeType cphi;
-			  cphi = ALPHA * phi[ i ];
-#warning using alpha = ALPHA here
-
-			  // add contribution to local matrix
-			  jLocal.column( i ).axpy( phi, cphi, weight );
-			}
-		    }
-		}
+	      // add contribution to local matrix
+	      jLocal.column( i ).axpy( rangePhi, cphi, weight );
 	    }
 	}
     }

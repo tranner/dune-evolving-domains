@@ -64,7 +64,8 @@ public:
 
   typedef typename FunctionSpaceType :: JacobianRangeType  JacobianRangeType;
 
-  typedef Dune::FieldMatrix< RangeFieldType, dimDomain, dimDomain > DiffusionTensorType; 
+  typedef Dune::FieldMatrix< RangeFieldType, dimDomain, dimDomain > DiffusionTensorType;
+  typedef Dune::FieldVector< RangeFieldType, dimDomain > AdvectionVectorType;
 
   //! the right hand side data (default = 0)
   virtual void f(const DomainType& x, 
@@ -79,10 +80,38 @@ public:
     value = 0;
   }
 
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const 
+  {
+    // set to identity by default
+    D = 0;
+    for( int i=0; i<D.rows; ++i ) 
+      D[ i ][ i ] = 1;
+  }
+
+  //! advection coefficient (default = 0)
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    // set to zero by default
+    b = 0;
+  }
+
   //! mass coefficient (default = 0)
   virtual void m(const DomainType& x, RangeType &m) const
   {
     m = RangeType(0);
+  }
+
+  //! robin coefficient (default = 0)
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = RangeType(0);
+  }
+
+  //! capacity coefficient (default = 1)
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = RangeType(0);
   }
 
   //! the exact solution (default = 0)
@@ -97,15 +126,6 @@ public:
                          JacobianRangeType& value) const 
   {
     value = 0; 
-  }
-
-  //! diffusion coefficient (default = Id)
-  virtual void D(const DomainType& x, DiffusionTensorType& D ) const 
-  {
-    // set to identity by default
-    D = 0;
-    for( int i=0; i<D.rows; ++i ) 
-      D[ i ][ i ] = 1;
   }
 
   //! return true if Dirichlet boundary is present (default is true)

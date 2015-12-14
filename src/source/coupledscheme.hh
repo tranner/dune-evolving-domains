@@ -11,6 +11,7 @@
 #include <dune/fem/function/blockvectorfunction.hh>
 
 // include linear operator
+#include <dune/fem/operator/linear/spoperator.hh>
 #include <dune/fem/operator/linear/istloperator.hh>
 
 // include solver
@@ -18,7 +19,8 @@
 
 // local includes
 #include "probleminterface.hh"
-#include "rhs-coupled.hh"
+#include "rhs.hh"
+#include "elliptic.hh"
 #include "elliptic-coupled.hh"
 
 // DataOutputParameters
@@ -71,7 +73,11 @@ struct FemSchemeHolder
   typedef Dune::Fem::ISTLCGOp< DiscreteFunctionType, LinearOperatorType > LinearInverseOperatorType;
 
   //! define Laplace operator
-  typedef DifferentiableEllipticOperator< LinearOperatorType, ModelType, codim > EllipticOperatorType;
+  typedef DifferentiableEllipticOperator< LinearOperatorType, ModelType > EllipticOperatorType;
+
+  //! error help
+  typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
+  typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
 
   FemSchemeHolder( GridPartType &gridPart,
 		   const ModelType& implicitModel)
@@ -81,7 +87,7 @@ struct FemSchemeHolder
       solution_( "solution", discreteSpace_ ),
       rhs_( "rhs", discreteSpace_ ),
       // the elliptic operator (implicit)
-      implicitOperator_( implicitModel_ ),
+      implicitOperator_( implicitModel_, discreteSpace_ ),
       // create linear operator (domainSpace,rangeSpace)
       linearOperator_( "assembled elliptic operator", discreteSpace_, discreteSpace_ )
   {
@@ -89,14 +95,43 @@ struct FemSchemeHolder
     solution_.clear();
   }
 
+  FemSchemeHolder( const FemSchemeHolder& other )
+    : implicitModel_( other.implicitModel_ ),
+      gridPart_( other.gridPart_ ),
+      discreteSpace_( other.gridPart_ ),
+      solution_( other.solution_ ),
+      rhs_( other.rhs_ ),
+      implicitOperator_( other.implicitOperator_ ),
+      linearOperator_( "assembled elliptic operator", discreteSpace_, discreteSpace_ )
+  {}
+
   DiscreteFunctionType &solution() { return solution_; }
   const DiscreteFunctionType &solution() const { return solution_; }
   const ModelType &model()  const { return implicitModel_; }
   DiscreteFunctionType &rhs() { return rhs_; }
   const DiscreteFunctionType &rhs() const { return rhs_; }
+  const DiscreteFunctionSpaceType &space() const { return discreteSpace_; }
 
   EllipticOperatorType &implicitOperator() { return implicitOperator_; }
   LinearOperatorType &linearOperator() { return linearOperator_; }
+
+  //! set up the right hand side
+  virtual void prepare()
+  {
+    // set boundary values for solution
+    implicitOperator_.prepare( implicitModel_.dirichletBoundary(), solution_ );
+
+    // assemble rhs
+    assembleRHS ( implicitModel_.rightHandSide(), rhs_ );
+
+    // apply constraints, e.g. Dirichlet contraints, to the result
+    implicitOperator_.prepare( solution_, rhs_ );
+  }
+
+  virtual void initialize()
+  {
+    assert(0);
+  }
 
   const int dofs() const
   {
@@ -114,6 +149,19 @@ struct FemSchemeHolder
     return Dune::Fem::MPIManager::comm().sum( elements_ );
   }
 
+  template< class GridExactSolution >
+  double l2Error( const GridExactSolution &exact ) const
+  {
+    L2NormType l2norm( gridPart_ );
+    return l2norm.distance( exact, solution_ );
+  }
+  template< class GridExactSolution >
+  double h1Error( const GridExactSolution &exact ) const
+  {
+    H1NormType h1norm( gridPart_ );
+    return h1norm.distance( exact, solution_ );
+  }
+
 protected:
   const ModelType &implicitModel_; // the mathematical model
 
@@ -128,12 +176,13 @@ protected:
   LinearOperatorType linearOperator_; // the linear operator (i.e. jacobian of the implicit)
 };
 
-template< class BulkModel, class SurfaceModel, class CoupledGrid >
+template< class BulkModel, class SurfaceModel, class ExchangeModel, class CoupledGrid >
 class CoupledScheme
 {
 public:
   typedef BulkModel BulkModelType;
   typedef SurfaceModel SurfaceModelType;
+  typedef ExchangeModel ExchangeModelType;
   typedef CoupledGrid CoupledGridType;
 
   typedef typename BulkModelType :: GridPartType BulkGridPartType;
@@ -145,14 +194,47 @@ public:
   typedef typename BulkFemSchemeHolderType :: DiscreteFunctionType BulkDiscreteFunctionType;
   typedef typename SurfaceFemSchemeHolderType :: DiscreteFunctionType SurfaceDiscreteFunctionType;
 
+  typedef Dune::Fem::SparseRowLinearOperator< BulkDiscreteFunctionType, SurfaceDiscreteFunctionType > BulkSurfaceLinearOperatorType;
+  typedef Dune::Fem::SparseRowLinearOperator< SurfaceDiscreteFunctionType, BulkDiscreteFunctionType > SurfaceBulkLinearOperatorType;
+
+  typedef DifferentiableMixingOperator< BulkSurfaceLinearOperatorType, ExchangeModelType, CoupledGridType >
+    BulkSurfaceOperatorType;
+  typedef DifferentiableMixingOperator< SurfaceBulkLinearOperatorType, ExchangeModelType, CoupledGridType >
+    SurfaceBulkOperatorType;
+
+#if 0
   CoupledScheme( BulkGridPartType &bulkGridPart, SurfaceGridPartType &surfaceGridPart,
 		 const BulkModelType &bulkModel, const SurfaceModelType &surfaceModel,
-		 const CoupledGridType &coupledGrid )
+		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
     : bulkScheme_( bulkGridPart, bulkModel ),
       surfaceScheme_( surfaceGridPart, surfaceModel ),
       coupledGrid_( coupledGrid ),
+      // the exchange operators
+      bulkSurfaceImplicitOperator_( exchangeModel, bulk().space() ),
+      surfaceBulkImplicitOperator_( exchangeModel, surface().space() ),
+      // create exchange linear operators
+      bulkSurfaceLinearOperator_( "assembled linear operator", bulk().space(), surface().space() ),
+      surfaceBulkLinearOperator_( "assembled linear operator", surface().space(), bulk().space() ),
       // tolerance for iterative solver
       solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) )
+  {}
+#endif
+
+  CoupledScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
+		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
+  : bulkScheme_( bulkScheme ),
+    surfaceScheme_( surfaceScheme ),
+    coupledGrid_( coupledGrid ),
+    // the exchange operators
+    bulkSurfaceImplicitOperator_( exchangeModel, coupledGrid ),
+    surfaceBulkImplicitOperator_( exchangeModel, coupledGrid ),
+    // create exchange linear operators
+    bulkSurfaceLinearOperator_( "assembled linear operator", bulk().space(), surface().space() ),
+    surfaceBulkLinearOperator_( "assembled linear operator", surface().space(), bulk().space() ),
+    // tolerance for iterative solver
+    solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
+    maxIter_( Dune::Fem::Parameter::getValue< unsigned int >( "coupled.maxiter", 10 ) ),
+    verbose_( Dune::Fem::Parameter::verbose() )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -167,13 +249,8 @@ public:
 
   void prepare()
   {
-    bulk().rhs().clear();
-    surface().rhs().clear();
-
-    assembleRHS( bulk().model(), surface().model(),
-		 bulkSolution(), surfaceSolution(),
-		 coupledGrid_,
-		 bulk().rhs(), surface().rhs() );
+    bulk().prepare();
+    surface().prepare();
   }
 
   void solve( bool assemble )
@@ -184,11 +261,15 @@ public:
       // assemble linear operator (i.e. setup matrix)
       bulk().implicitOperator().jacobian( bulk().solution() , bulk().linearOperator() );
       surface().implicitOperator().jacobian( surface().solution() , surface().linearOperator() );
+
+      bulkSurfaceImplicitOperator_.jacobian( bulk().solution(), bulkSurfaceLinearOperator_ );
+      surfaceBulkImplicitOperator_.jacobian( surface().solution(), surfaceBulkLinearOperator_ );
     }
 
     // inverse operator using linear operator
-    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), solverEps_, solverEps_ );
-    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), solverEps_, solverEps_ );
+    const double innerSolverEps = solverEps_ * 1.0e-2;
+    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps );
+    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps );
 
     const double eps = solverEps_ *
       ( bulk().rhs().scalarProductDofs( bulk().rhs() )
@@ -196,14 +277,27 @@ public:
 
     iterations_ = 0;
     double update = 2.0 * eps;
-    do
+    for( iterations_ = 0; iterations_ < maxIter_; ++iterations_ )
       {
-	BulkDiscreteFunctionType oldBulkSolution( bulkSolution() );
-	SurfaceDiscreteFunctionType oldSurfaceSolution( surfaceSolution() );
+	// store old solution
+	BulkDiscreteFunctionType oldBulkSolution( bulk().rhs() );
+	SurfaceDiscreteFunctionType oldSurfaceSolution( surface().rhs() );
+
+	// construct new rhs
+	BulkDiscreteFunctionType myBulkRhs( bulk().rhs() );
+	SurfaceDiscreteFunctionType mySurfaceRhs( surface().rhs() );
+
+	BulkDiscreteFunctionType Bv( bulkSolution() );
+	surfaceBulkLinearOperator_( surfaceSolution(), Bv );
+	SurfaceDiscreteFunctionType Btu( surfaceSolution() );
+	bulkSurfaceLinearOperator_( bulkSolution(), Btu );
+
+	myBulkRhs -= Bv;
+	mySurfaceRhs -= Btu;
 
 	// solve system
-	bulkInvOp( bulk().rhs(), bulk().solution() );
-	surfaceInvOp( surface().rhs(), surface().solution() );
+	bulkInvOp( myBulkRhs, bulk().solution() );
+	surfaceInvOp( mySurfaceRhs, surface().solution() );
 	//! [Solve the system]
 
 	// find difference
@@ -214,16 +308,25 @@ public:
 	  + oldSurfaceSolution.scalarProductDofs( oldSurfaceSolution );
 	update = Dune::Fem::MPIManager::comm().sum( update );
 
-	if( Dune::Fem::MPIManager::rank() == 0 )
-	  std::cout << "it: " << iterations_ << " update: " << update
+	if( update < eps )
+	  break;
+
+	if( Dune::Fem::MPIManager::rank() == 0 and verbose_ )
+	  {
+	    std::cout << " it: " << iterations_
+		    << " update: " << update << " / " << eps
 		    << " bulk solver it: " << bulkInvOp.iterations()
 		    << " surface solver it: " << surfaceInvOp.iterations()
 		    << std::endl;
+	    std::cout << oldBulkSolution.scalarProductDofs( oldBulkSolution ) << " and "
+		      << oldSurfaceSolution.scalarProductDofs( oldSurfaceSolution ) << std::endl;
+
+	    if( iterations_ > 5 )
+	      { int qq; std::cin >> qq; }
+	  }
 
 	prepare();
-	++iterations_;
       }
-    while( update > eps );
   }
 
   const int iterations() const
@@ -248,13 +351,21 @@ protected:
   const SurfaceFemSchemeHolderType &surface() const { return surfaceScheme_; }
 
 private:
-  BulkFemSchemeHolderType bulkScheme_;
-  SurfaceFemSchemeHolderType surfaceScheme_;
+  BulkFemSchemeHolderType &bulkScheme_;
+  SurfaceFemSchemeHolderType &surfaceScheme_;
 
   const CoupledGridType &coupledGrid_;
 
+  const BulkSurfaceOperatorType bulkSurfaceImplicitOperator_;
+  const SurfaceBulkOperatorType surfaceBulkImplicitOperator_;
+
+  BulkSurfaceLinearOperatorType bulkSurfaceLinearOperator_;
+  SurfaceBulkLinearOperatorType surfaceBulkLinearOperator_;
+
   const double solverEps_ ; // eps for linear solver
   unsigned int iterations_;
+  const unsigned int maxIter_;
+  const bool verbose_;
 };
 
 #endif // #ifndef COUPLED_FEMSCHEME_HH
