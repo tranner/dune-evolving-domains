@@ -62,11 +62,15 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
   typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
   typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
 
-  typedef TemporalProblemInterface< FunctionSpaceType > ProblemType ;
+  typedef TemporalProblemInterface< FunctionSpace > ProblemType;
+  typedef typename ProblemType :: DiffusionTensorType DiffusionTensorType;
+  typedef typename ProblemType :: AdvectionVectorType AdvectionVectorType;
 
   typedef typename BaseType::ProblemType InitialFunctionType;
 
   typedef Dune::Fem::TimeProviderBase TimeProviderType;
+
+  static const unsigned int dimDomain = FunctionSpaceType :: dimDomain;
 
   //! constructor taking problem reference, time provider, 
   //! time step factor( either theta or -(1-theta) ), 
@@ -94,20 +98,16 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                 RangeType &flux ) const
   {
     linSource( value, entity, x, value, flux );
-#if 0
     // the explicit model should also evaluate the RHS
     if( !implicit_ ) 
     {
-      const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
+      const DomainType xGlobal = entity.geometry().global( x );
       // evaluate right hand side 
       RangeType rhs ;
       problem_.f( xGlobal, rhs );
       rhs  *= timeProvider_.deltaT();
       flux += rhs ;
     }
-#else
-#warning no rhs from model needs to be put into surface code via rhs.hh
-#endif
   }
 
   template< class Entity, class Point >
@@ -117,14 +117,17 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                    const RangeType &value, 
                    RangeType &flux ) const
   {
-    const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
+    const DomainType xGlobal = entity.geometry().global( x );
     RangeType m;
     problem_.m(xGlobal,m);
     for (unsigned int i=0;i<flux.size();++i)
       flux[i] = m[i]*value[i];
     flux *= timeStepFactor_ * timeProvider_.deltaT();
     // add term from time derivative
-    flux += value;
+    RangeType d;
+    problem_.d(xGlobal,d);
+    for (unsigned int i=0;i<flux.size();++i)
+      flux[i] = d[i]*value[i];
   }
 
    //! return the diffusive flux 
@@ -147,7 +150,20 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                           const JacobianRangeType &gradient,
                           JacobianRangeType &flux ) const
   {
-    flux  = gradient;
+    const DomainType xGlobal = entity.geometry().global( x );
+    DiffusionTensorType D;
+    problem_.D( xGlobal, D );
+    AdvectionVectorType b;
+    problem_.b( xGlobal, b );
+
+    // flux = D gradient + b value
+    flux = 0;
+    for( unsigned int i = 0; i < dimDomain; ++i )
+      {
+	for( unsigned int k = 0; k < dimDomain; ++k )
+	  flux[ 0 ][ i ] += D[ i ][ k ] * gradient[ 0 ][ k ];
+	flux[ 0 ][ i ] += b[ i ] * value;
+      }
     flux *= timeStepFactor_ * timeProvider_.deltaT();
   }
 
@@ -158,10 +174,11 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
 		     const RangeType &value,
 		     RangeType &flux ) const
   {
-    flux = RangeType( 0 );
+    linBoundaryFlux( value, entity, x, value, flux );
+
     if( !implicit_ )
       {
-	const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
+	const DomainType xGlobal = entity.geometry().global( x );
 	RangeType neumannRhs;
 	problem_.boundaryRhs( xGlobal, neumannRhs );
 	neumannRhs *= timeProvider_.deltaT();
@@ -177,7 +194,12 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                    const RangeType &value,
                    RangeType &flux ) const
   {
-    flux = RangeType( 0 );
+    const DomainType xGlobal = entity.geometry().global( x );
+    RangeType a;
+    problem_.a(xGlobal,a);
+    for( unsigned int i = 0; i < flux.size(); ++i )
+      flux[i] = a[i]*value[i];
+    flux *= timeStepFactor_ * timeProvider_.deltaT();
   }
 
   //! exact some methods from the problem class
@@ -224,45 +246,6 @@ protected:
   bool implicit_;
   double timeStepFactor_;
 
-};
-
-template< class FunctionSpace, class BulkGridPart, class SurfaceGridPart >
-struct CoupledHeatModel
-{
-  typedef CoupledHeatModel< FunctionSpace, BulkGridPart, SurfaceGridPart > ThisType;
-
-  typedef HeatModel< FunctionSpace, BulkGridPart > BulkModelType;
-  typedef HeatModel< FunctionSpace, SurfaceGridPart > SurfaceModelType;
-
-  typedef typename BulkModelType :: ProblemType BulkProblemType;
-  typedef typename SurfaceModelType :: ProblemType SurfaceProblemType;
-
-  CoupledHeatModel( const BulkProblemType &bulkProblem,
-		    const SurfaceProblemType& surfaceProblem,
-		    const BulkGridPart &bulkGridPart,
-		    const SurfaceGridPart &surfaceGridPart,
-		    const bool implicit )
-    : bulkModel_( bulkProblem, bulkGridPart, implicit ),
-      surfaceModel_( surfaceProblem, surfaceGridPart, implicit ),
-      alpha_( Dune::Fem::Parameter::getValue< double >( "coupled.alpha", 1 ) ),
-      beta_( Dune::Fem::Parameter::getValue< double >( "coupled.beta", 1 ) )
-  {}
-
-  BulkModelType &bulkModel() { return bulkModel_; }
-  SurfaceModelType &surfaceModel() { return surfaceModel_; }
-
-  const BulkModelType &bulkModel() const { return bulkModel_; }
-  const SurfaceModelType &surfaceModel() const { return surfaceModel_; }
-
-  double alpha() const { return alpha_; }
-  double beta() const { return beta_; }
-
-private:
-  BulkModelType bulkModel_;
-  SurfaceModelType surfaceModel_;
-
-  const double alpha_;
-  const double beta_;
 };
 
 #endif // #ifndef HEAT_MODEL_HH
