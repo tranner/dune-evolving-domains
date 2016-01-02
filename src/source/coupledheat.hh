@@ -114,6 +114,12 @@ public:
     m = RangeType(0);
   }
 
+  //! coefficient of time derivative
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = alpha() * RangeType(1);
+  }
+
   //! robin coefficient
   virtual void a(const DomainType& x, RangeType &a) const
   {
@@ -213,6 +219,12 @@ public:
   virtual void m(const DomainType& x, RangeType &m) const
   {
     m = beta() * beta() * RangeType(1);
+  }
+
+  //! coefficient of time derivative
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = beta() * RangeType(1);
   }
 
   //! the exact solution
