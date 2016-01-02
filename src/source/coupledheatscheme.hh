@@ -111,6 +111,7 @@ private:
 
   using BaseType::solution;
   using BaseType::rhs;
+  using BaseType::gridView;
 
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs
@@ -217,7 +218,7 @@ public:
     // compute mass
     static double oldBulkMass = 0;
     double bulkMass = 0;
-    for( auto e : elements( bulkSolution().gridPart().gridView() ) )
+    for( auto e : elements( bulk().gridView() ) )
       {
         const auto geo = e.geometry();
         const double volume = geo.volume();
@@ -235,7 +236,7 @@ public:
 
     static double oldSurfaceMass = 0;
     double surfaceMass = 0;
-    for( auto e : elements( surfaceSolution().gridPart().gridView() ) )
+    for( auto e : elements( surface().gridView() ) )
       {
         const auto geo = e.geometry();
         const double volume = geo.volume();

@@ -61,6 +61,9 @@ struct FemSchemeHolder
   //! type of underyling hierarchical grid needed for data output
   typedef typename GridPartType::GridType GridType;
 
+  //! type of underlying grid view
+  typedef typename GridPartType::GridViewType GridViewType;
+
   //! type of function space (scalar functions, \f$ f: \Omega -> R) \f$
   typedef typename ModelType :: FunctionSpaceType   FunctionSpaceType;
 
@@ -114,6 +117,8 @@ struct FemSchemeHolder
 
   EllipticOperatorType &implicitOperator() { return implicitOperator_; }
   LinearOperatorType &linearOperator() { return linearOperator_; }
+
+  const GridViewType gridView() const { return static_cast< GridViewType >( gridPart_ ); }
 
   //! set up the right hand side
   virtual void prepare()
