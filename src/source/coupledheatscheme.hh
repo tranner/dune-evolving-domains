@@ -107,9 +107,11 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
 private:
   using BaseType::gridPart_;
   using BaseType::discreteSpace_;
-  using BaseType::solution_;
   using BaseType::implicitModel_;
-  using BaseType::rhs_;
+
+  using BaseType::solution;
+  using BaseType::rhs;
+
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs
 };
@@ -189,11 +191,14 @@ public:
     surface().initialize();
   }
 
-  template< class BulkGridExactSolution, class SurfaceGridExactSolution >
+  template< class BulkGridExactSolution, class SurfaceGridExactSolution,
+            class TimeProvider >
   void closeTimestep( const BulkGridExactSolution &bulkExact,
-		      const SurfaceGridExactSolution &surfaceExact,
-		      const double deltaT )
+                      const SurfaceGridExactSolution &surfaceExact,
+                      const TimeProvider &tp )
   {
+    const double deltaT = tp.deltaT();
+
     const double bulkl2error = bulk().l2Error( bulkExact );
     linftyl2BulkError_ = std::max( linftyl2BulkError_, bulkl2error );
 
@@ -208,6 +213,58 @@ public:
 
     // write to file
     errorOutput_.write( bulkl2error, bulkh1error, surfacel2error, surfaceh1error );
+
+    // compute mass
+    static double oldBulkMass = 0;
+    double bulkMass = 0;
+    for( auto e : elements( bulkSolution().gridPart().gridView() ) )
+      {
+        const auto geo = e.geometry();
+        const double volume = geo.volume();
+
+        const auto& uLocal = bulkSolution().localFunction( e );
+        const auto& uLocalDofVector = uLocal.localDofVector();
+        double val = 0;
+        for( auto ux : uLocalDofVector )
+          {
+            val += ux;
+          }
+        val /= uLocalDofVector.size();
+        bulkMass += val * volume;
+      }
+
+    static double oldSurfaceMass = 0;
+    double surfaceMass = 0;
+    for( auto e : elements( surfaceSolution().gridPart().gridView() ) )
+      {
+        const auto geo = e.geometry();
+        const double volume = geo.volume();
+
+        const auto& uLocal = surfaceSolution().localFunction( e );
+        const auto& uLocalDofVector = uLocal.localDofVector();
+        double val = 0;
+        for( auto ux : uLocalDofVector )
+          {
+            val += ux;
+          }
+        val /= uLocalDofVector.size();
+
+        surfaceMass += val * volume;
+      }
+
+    if( tp.timeStep() > 1 )
+      {
+        const double change = std::abs( bulkMass - oldBulkMass )
+          + std::abs( surfaceMass - oldSurfaceMass );
+        if( change > solverEps() )
+          {
+            std::cout << "bulk mass: " << bulkMass << " change: " << std::abs( bulkMass - oldBulkMass )
+                      << "\nsurface mass: " << surfaceMass << " change: " << std::abs( surfaceMass - oldSurfaceMass ) << std::endl;
+          }
+      }
+
+    oldBulkMass = bulkMass;
+    oldSurfaceMass = surfaceMass;
   }
 
   double linftyl2BulkError() const
@@ -227,6 +284,9 @@ public:
     return l2h1SurfaceError_;
   }
 
+  using BaseType::bulkSolution;
+  using BaseType::surfaceSolution;
+
 protected:
   using BaseType::bulk;
   using BaseType::surface;
@@ -237,6 +297,8 @@ private:
   double l2h1BulkError_;
   double linftyl2SurfaceError_;
   double l2h1SurfaceError_;
+
+  using BaseType::solverEps;
 };
 
 #endif // #ifndef COUPLED_HEATSCHEME_HH

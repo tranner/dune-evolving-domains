@@ -153,7 +153,7 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
     surfaceDataOutput.write( timeProvider );
 
     // finalise (compute errors)
-    scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider.deltaT() );
+    scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider );
   }
 
   // output final solution

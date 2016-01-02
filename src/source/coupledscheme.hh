@@ -233,8 +233,8 @@ public:
     surfaceBulkLinearOperator_( "assembled linear operator", surface().space(), bulk().space() ),
     // tolerance for iterative solver
     solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
-    maxIter_( Dune::Fem::Parameter::getValue< unsigned int >( "coupled.maxiter", 10 ) ),
-    verbose_( Dune::Fem::Parameter::verbose() )
+    maxIter_( Dune::Fem::Parameter::getValue< unsigned int >( "coupled.maxiter", 1000 ) ),
+    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -349,6 +349,8 @@ protected:
   const BulkFemSchemeHolderType &bulk() const { return bulkScheme_; }
   SurfaceFemSchemeHolderType &surface() { return surfaceScheme_; }
   const SurfaceFemSchemeHolderType &surface() const { return surfaceScheme_; }
+
+  const double solverEps() const { return solverEps_; }
 
 private:
   BulkFemSchemeHolderType &bulkScheme_;
