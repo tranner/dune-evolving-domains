@@ -311,8 +311,6 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
   using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
   for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
-    const auto& geometry = entity.geometry();
-
     // find bulk entity
     const auto seed = coupledGrid().surfaceBulkMap( entity );
     const auto bulkEntity = bulkGridPart.entity( seed );
