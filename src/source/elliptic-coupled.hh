@@ -424,7 +424,8 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
   std::vector< typename SurfaceDiscreteFunctionType::RangeType > rangePhi( rangeSpace.blockMapper().maxNumDofs()*rangeBlockSize );
 
   // loop over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
     {
       // find geometry
       const auto& geometry = entity.geometry();
