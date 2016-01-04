@@ -276,9 +276,8 @@ public:
     typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps );
     typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps );
 
-    const double eps = solverEps_ *
-      ( bulk().rhs().scalarProductDofs( bulk().rhs() )
-	+ surface().rhs().scalarProductDofs( surface().rhs() ) );
+    const double eps = std::max( solverEps_ * solverEps_ *
+      ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 1.0e-16 );
 
     iterations_ = 0;
     double update = 2.0 * eps;
