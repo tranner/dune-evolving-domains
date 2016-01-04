@@ -80,16 +80,8 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
              const bool implicit )
     : BaseType(problem,gridPart),
       timeProvider_(problem.timeProvider()),
-      implicit_( implicit ),
-      timeStepFactor_( 0 )
-  {
-    // get theta for theta scheme
-    const double theta = Dune::Fem::Parameter::getValue< double >("heat.theta", 0.5 );
-    if (implicit)
-      timeStepFactor_ = theta ;
-    else
-      timeStepFactor_ = -( 1.0 - theta ) ;
-  }
+      implicit_( implicit )
+  {}
 
   template< class Entity, class Point >
   void source ( const Entity &entity,
@@ -117,17 +109,25 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                    const RangeType &value,
                    RangeType &flux ) const
   {
-    const DomainType xGlobal = entity.geometry().global( x );
-    RangeType m;
-    problem_.m(xGlobal,m);
-    for (unsigned int i=0;i<flux.size();++i)
-      flux[i] = m[i]*value[i];
-    flux *= timeStepFactor_ * timeProvider_.deltaT();
+    flux = 0;
+
+    if( implicit_ )
+      {
+	// linear source term
+	const DomainType xGlobal = entity.geometry().global( x );
+	RangeType m;
+	problem_.m(xGlobal,m);
+	for (unsigned int i=0;i<flux.size();++i)
+	  flux[i] += m[i]*value[i];
+	flux *= timeProvider_.deltaT();
+      }
+
     // add term from time derivative
+    const DomainType xGlobal = entity.geometry().global( x );
     RangeType d;
     problem_.d(xGlobal,d);
     for (unsigned int i=0;i<flux.size();++i)
-      flux[i] = d[i]*value[i];
+      flux[i] += d[i]*value[i];
   }
 
    //! return the diffusive flux
@@ -150,21 +150,25 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                           const JacobianRangeType &gradient,
                           JacobianRangeType &flux ) const
   {
-    const DomainType xGlobal = entity.geometry().global( x );
-    DiffusionTensorType D;
-    problem_.D( xGlobal, D );
-    AdvectionVectorType b;
-    problem_.b( xGlobal, b );
-
-    // flux = D gradient + b value
     flux = 0;
-    for( unsigned int i = 0; i < dimDomain; ++i )
+
+    if( implicit_ )
       {
-	for( unsigned int k = 0; k < dimDomain; ++k )
-	  flux[ 0 ][ i ] += D[ i ][ k ] * gradient[ 0 ][ k ];
-	flux[ 0 ][ i ] += b[ i ] * value;
+	const DomainType xGlobal = entity.geometry().global( x );
+	DiffusionTensorType D;
+	problem_.D( xGlobal, D );
+	AdvectionVectorType b;
+	problem_.b( xGlobal, b );
+
+	// flux = D gradient + b value
+	for( unsigned int i = 0; i < dimDomain; ++i )
+	  {
+	    for( unsigned int k = 0; k < dimDomain; ++k )
+	      flux[0][i] += D[i][k] * gradient[0][k];
+	    flux[0][i] += b[i] * value;
+	  }
+	flux *= timeProvider_.deltaT();
       }
-    flux *= timeStepFactor_ * timeProvider_.deltaT();
   }
 
   //! return the boundary flux
@@ -194,18 +198,16 @@ struct HeatModel : public DiffusionModel<FunctionSpace,GridPart>
                    const RangeType &value,
                    RangeType &flux ) const
   {
+    flux = 0;
+
     if( implicit_ )
     {
       const DomainType xGlobal = entity.geometry().global( x );
       RangeType a;
       problem_.a(xGlobal,a);
       for( unsigned int i = 0; i < flux.size(); ++i )
-        flux[i] = a[i]*value[i];
-      flux *= timeStepFactor_ * timeProvider_.deltaT();
-    }
-    else
-    {
-      flux = 0;
+        flux[i] += a[i]*value[i];
+      flux *= timeProvider_.deltaT();
     }
   }
 
@@ -251,8 +253,6 @@ protected:
   using BaseType::problem_;
   const TimeProviderType &timeProvider_;
   bool implicit_;
-  double timeStepFactor_;
-
 };
 
 #endif // #ifndef HEAT_MODEL_HH
