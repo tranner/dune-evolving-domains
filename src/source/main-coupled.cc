@@ -134,6 +134,7 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   // write initial solve
   bulkDataOutput.write( timeProvider );
   surfaceDataOutput.write( timeProvider );
+  scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider, true );
 
   // time loop, increment with fixed time step
   for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )

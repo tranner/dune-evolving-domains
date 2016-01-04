@@ -196,7 +196,7 @@ public:
             class TimeProvider >
   void closeTimestep( const BulkGridExactSolution &bulkExact,
                       const SurfaceGridExactSolution &surfaceExact,
-                      const TimeProvider &tp )
+                      const TimeProvider &tp, const bool first = false )
   {
     const double deltaT = tp.deltaT();
 
@@ -253,15 +253,22 @@ public:
         surfaceMass += val * volume;
       }
 
-    if( tp.timeStep() > 1 )
+    if( not first )
       {
-        const double change = std::abs( bulkMass - oldBulkMass )
-          + std::abs( surfaceMass - oldSurfaceMass );
-        if( change > solverEps() )
+        const double change = ( bulkMass - oldBulkMass )
+          + ( surfaceMass - oldSurfaceMass );
+        if( std::abs( change ) > std::sqrt(solverEps()) )
           {
             std::cout << "bulk mass: " << bulkMass << " change: " << std::abs( bulkMass - oldBulkMass )
                       << "\nsurface mass: " << surfaceMass << " change: " << std::abs( surfaceMass - oldSurfaceMass ) << std::endl;
+            std::cout << "sum change: " << change << std::endl;
+            assert(0);
           }
+      }
+    else
+      {
+        std::cout << "bulk mass: " << bulkMass
+                  << "\nsurface mass: " << surfaceMass << std::endl;
       }
 
     oldBulkMass = bulkMass;
