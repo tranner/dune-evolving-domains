@@ -91,7 +91,7 @@ struct FemSchemeHolder
       rhs_( "rhs", discreteSpace_ ),
       // the elliptic operator (implicit)
       implicitOperator_( implicitModel_, discreteSpace_ ),
-      // create linear operator (domainSpace,rangeSpace)
+      // create linear operator (domain space,range space)
       linearOperator_( "assembled elliptic operator", discreteSpace_, discreteSpace_ )
   {
     // set all DoF to zero
