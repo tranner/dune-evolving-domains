@@ -96,6 +96,7 @@ struct FemSchemeHolder
   {
     // set all DoF to zero
     solution_.clear();
+    rhs_.clear();
   }
 
   FemSchemeHolder( const FemSchemeHolder& other )
@@ -279,21 +280,29 @@ public:
     const double eps = std::max( solverEps_ * solverEps_ *
       ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 1.0e-16 );
 
+    // store old solution
+    BulkDiscreteFunctionType oldBulkSolution( bulkSolution() );
+    SurfaceDiscreteFunctionType oldSurfaceSolution( surfaceSolution() );
+
+    // construct new rhs
+    BulkDiscreteFunctionType myBulkRhs( bulk().rhs() );
+    SurfaceDiscreteFunctionType mySurfaceRhs( surface().rhs() );
+
+    BulkDiscreteFunctionType Bv( bulkSolution() );
+    SurfaceDiscreteFunctionType Btu( surfaceSolution() );
+
     iterations_ = 0;
     double update = 2.0 * eps;
     for( iterations_ = 0; iterations_ < maxIter_; ++iterations_ )
       {
 	// store old solution
-	BulkDiscreteFunctionType oldBulkSolution( bulk().rhs() );
-	SurfaceDiscreteFunctionType oldSurfaceSolution( surface().rhs() );
+	oldBulkSolution.assign( bulkSolution() );
+	oldSurfaceSolution.assign( surfaceSolution() );
 
 	// construct new rhs
-	BulkDiscreteFunctionType myBulkRhs( bulk().rhs() );
-	SurfaceDiscreteFunctionType mySurfaceRhs( surface().rhs() );
-
-	BulkDiscreteFunctionType Bv( bulkSolution() );
+	myBulkRhs.assign( bulk().rhs() );
+	mySurfaceRhs.assign( surface().rhs() );
 	surfaceBulkLinearOperator_( surfaceSolution(), Bv );
-	SurfaceDiscreteFunctionType Btu( surfaceSolution() );
 	bulkSurfaceLinearOperator_( bulkSolution(), Btu );
 
 	myBulkRhs -= Bv;
@@ -308,8 +317,7 @@ public:
 	oldBulkSolution -= bulkSolution();
 	oldSurfaceSolution -= surfaceSolution();
 
-	update = oldBulkSolution.scalarProductDofs( oldBulkSolution )
-	  + oldSurfaceSolution.scalarProductDofs( oldSurfaceSolution );
+	update = oldBulkSolution.normSquaredDofs() + oldSurfaceSolution.normSquaredDofs();
 	update = Dune::Fem::MPIManager::comm().sum( update );
 
 	if( update < eps )
