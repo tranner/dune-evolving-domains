@@ -101,7 +101,8 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
   const auto& bulkGridPart = coupledGrid().bulkGridPart();
 
   // iterate over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
     const auto& geometry = entity.geometry();
 
@@ -159,7 +160,8 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
   const auto& bulkGridPart = coupledGrid().bulkGridPart();
 
   // iterate over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
     const auto& geometry = entity.geometry();
 
@@ -306,7 +308,8 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
   // set up matrix stencil
   Dune :: Fem :: Stencil< BulkDiscreteFunctionSpaceType, SurfaceDiscreteFunctionSpaceType > stencil( domainSpace, rangeSpace );
   // iterate over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
     const auto& geometry = entity.geometry();
 
@@ -327,7 +330,8 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
   std::vector< typename SurfaceDiscreteFunctionType::RangeType > rangePhi( rangeSpace.blockMapper().maxNumDofs()*rangeBlockSize );
 
   // loop over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
     {
       // find geometry
       const auto& geometry = entity.geometry();
@@ -345,7 +349,6 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
       const auto& domainBasisSet = jLocal.domainBasisFunctionSet();
       const unsigned int numDomainBasisFunctions = domainBasisSet.size();
       const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
-      const unsigned int numRangeBasisFunctions = rangeBasisSet.size();
 
       // perform quadrature loop
       QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
@@ -401,10 +404,9 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
   // set up matrix stencil
   Dune :: Fem :: Stencil< SurfaceDiscreteFunctionSpaceType, BulkDiscreteFunctionSpaceType > stencil( domainSpace, rangeSpace );
   // iterate over grid
-  for( const auto& entity : elements( surfaceGridPart.gridView() ) )
+  using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
+  for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
-    const auto& geometry = entity.geometry();
-
     // find bulk entity
     const auto seed = coupledGrid().surfaceBulkMap( entity );
     const auto bulkEntity = bulkGridPart.entity( seed );
@@ -440,7 +442,6 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
       const auto& domainBasisSet = jLocal.domainBasisFunctionSet();
       const unsigned int numDomainBasisFunctions = domainBasisSet.size();
       const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
-      const unsigned int numRangeBasisFunctions = rangeBasisSet.size();
 
       // perform quadrature loop
       QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
