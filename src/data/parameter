@@ -23,7 +23,7 @@ fem.timeprovider.factor: 1
 
 heat.timestep: 0.1
 heat.endtime: 1
-heat.theta: 0.5
+heat.theta: 1
 heat.level: 0
 heat.repeats: 10
 heat.reducetimestepfactor: 0.25
