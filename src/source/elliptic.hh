@@ -79,8 +79,26 @@ protected:
   typedef Dune::Fem::ElementQuadrature< GridPartType, 1 > FaceQuadratureType;
   typedef Dune::Fem::CachingQuadrature< GridPartType, 0 > QuadratureType;
 
-  //! type of Dirichlet constraints 
-  typedef Dune::DirichletConstraints< ModelType, DiscreteFunctionSpaceType > ConstraintsType;
+  //! type of Dirichlet constraints
+  template< class MyModel, class MySpace >
+  struct Constraints
+  {
+    Constraints( const MyModel& m, const MySpace& s )
+    {}
+
+    template< class F1, class F2 >
+    void operator()( const F1& f1, F2& f2 ) const
+    {
+      return;
+    }
+
+    template< class Op >
+    void applyToOperator( Op& op ) const
+    {
+      return;
+    }
+  };
+  typedef Constraints< Model, DiscreteFunctionSpaceType > ConstraintsType;
 
 public:
   //! contructor
@@ -263,8 +281,7 @@ void EllipticOperator< DiscreteFunction, Model >
   w.communicate();
 
   // apply constraints, e.g. Dirichlet contraints, to the result
-#warning no constraints
-  // constraints()( u, w );
+  constraints()( u, w );
 }
 
 // Implementation of DifferentiableEllipticOperator
@@ -380,7 +397,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
 	}
   } // end grid traversal
 
-  // apply constraints to matrix operator 
+  // apply constraints to matrix operator
   constraints().applyToOperator( jOp );
   jOp.communicate();
 }
