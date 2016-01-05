@@ -33,8 +33,6 @@ struct CoupledGrid
   CoupledGrid( HBulkGrid &bulkGrid )
     : bulkGrid_( bulkGrid )
   {
-    assert( HBulkGrid::dimension == 3 );
-
     // create vertex list to avoid duplicated
     std::vector< Dune :: FieldVector< double, HBulkGrid::dimension > > vertexList;
 
@@ -86,16 +84,20 @@ struct CoupledGrid
 		      }
 		  }
 
-		// check if orientation of simplex is correct
-		Dune :: FieldVector< double, HBulkGrid::dimension > normal;
-		Dune :: FieldVector< double, HBulkGrid::dimension > e1 = vertexList[ idx[0] ] - vertexList[ idx[1] ];
-		Dune :: FieldVector< double, HBulkGrid::dimension > e2 = vertexList[ idx[0] ] - vertexList[ idx[2] ];
-		normal[0] = e1[1]*e2[2]-e1[2]*e2[1];
-		normal[1] = e1[2]*e2[0]-e1[0]*e2[2];
-		normal[2] = e1[0]*e2[1]-e1[1]*e2[0];
 
-		if( iit->centerUnitOuterNormal()*normal < 0)
-		  std::swap( idx[1], idx[2] );
+		if( HBulkGrid::dimension == 3 )
+		  {
+		    // check if orientation of simplex is correct
+		    Dune :: FieldVector< double, HBulkGrid::dimension > normal;
+		    Dune :: FieldVector< double, HBulkGrid::dimension > e1 = vertexList[ idx[0] ] - vertexList[ idx[1] ];
+		    Dune :: FieldVector< double, HBulkGrid::dimension > e2 = vertexList[ idx[0] ] - vertexList[ idx[2] ];
+		    normal[0] = e1[1]*e2[2]-e1[2]*e2[1];
+		    normal[1] = e1[2]*e2[0]-e1[0]*e2[2];
+		    normal[2] = e1[0]*e2[1]-e1[1]*e2[0];
+
+		    if( iit->centerUnitOuterNormal()*normal < 0)
+		      std::swap( idx[1], idx[2] );
+		  }
 
 		// add element to factory
 		factory_.insertElement( iit->type(), idx );

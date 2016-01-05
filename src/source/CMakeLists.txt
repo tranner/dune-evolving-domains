@@ -8,7 +8,7 @@ set(CLEANFILES  *.log)
 
 set(check_PROGRAMS  main-surface main-coupled)
 
-SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -DPOLORDER=${POLORDER} -DWANT_ISTL=${WANT_ISTL}")
+SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -DPOLORDER=${POLORDER} -DWANT_ISTL=${WANT_ISTL} -DGRIDDIM=${GRIDDIM} -DWORLDDIM=${WORLDDIM}")
 
 add_executable(main-surface main-surface.cc)
 add_dune_alberta_flags(main-surface GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})

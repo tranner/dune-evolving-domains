@@ -210,8 +210,8 @@ try
   // type of hierarchical grid
   //typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HBulkGridType;
   //typedef Dune :: ALUGrid< 2, 3, Dune::simplex, Dune::conforming > HSurfaceGridType;
-  typedef Dune :: AlbertaGrid< 3, 3 > HBulkGridType;
-  typedef Dune :: AlbertaGrid< 2, 3 > HSurfaceGridType;
+  typedef Dune :: AlbertaGrid< GRIDDIM, WORLDDIM > HBulkGridType;
+  typedef Dune :: AlbertaGrid< GRIDDIM-1, WORLDDIM > HSurfaceGridType;
 
   // create grid from DGF file
   const std::string bulkGridkey = Dune::Fem::IOInterface::defaultGridKey( HBulkGridType::dimension );
