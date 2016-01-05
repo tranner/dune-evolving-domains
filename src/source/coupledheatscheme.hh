@@ -89,19 +89,19 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
 
   virtual void prepare()
   {
-    // apply constraints, e.g. Dirichlet contraints, to the solution
-    explicitOperator_.prepare( explicitModel_.dirichletBoundary(), solution_ );
+    // apply constraints, e.g. Dirichlet constraints, to the solution
+    explicitOperator_.prepare( explicitModel_.dirichletBoundary(), solution() );
     // apply explicit operator and also setup right hand side
-    explicitOperator_( solution_, rhs_ );
-    // apply constraints, e.g. Dirichlet contraints, to the result
-    explicitOperator_.prepare( solution_, rhs_ );
+    explicitOperator_( solution(), rhs() );
+    // apply constraints, e.g. Dirichlet constraints, to the result
+    explicitOperator_.prepare( solution(), rhs() );
   }
 
   virtual void initialize ()
   {
      Dune::Fem::LagrangeInterpolation
           < typename ExplicitModelType::InitialFunctionType, DiscreteFunctionType > interpolation;
-     interpolation( explicitModel_.initialFunction(), solution_ );
+     interpolation( explicitModel_.initialFunction(), solution() );
   }
 
 private:
@@ -144,34 +144,11 @@ public:
   typedef typename BulkFemSchemeHolderType :: DiscreteFunctionType BulkDiscreteFunctionType;
   typedef typename SurfaceFemSchemeHolderType :: DiscreteFunctionType SurfaceDiscreteFunctionType;
 
-#if 0
-  CoupledHeatScheme( BulkGridPartType &bulkGridPart,
-                     SurfaceGridPartType &surfaceGridPart,
-                     BulkImplicitModelType &bulkImplicitModel,
-                     BulkExplicitModelType &bulkExplicitModel,
-                     SurfaceImplicitModelType &surfaceImplicitModel,
-                     SurfaceExplicitModelType &surfaceExplicitModel,
-                     ExchangeModelType &exchangeModel,
-                     const CoupledGridType &coupledGrid,
-                     const unsigned int step = 0 )
-  : BaseType( BulkFemSchemeHolderType( bulkGridPart, bulkImplicitModel, bulkExplicitModel ),
-              SurfaceFemSchemeHolderType( surfaceGridPart, surfaceExplicitModel, surfaceExplicitModel ),
-              exchangeModel, coupledGrid ),
-  // error stuffles
-    errorOutput_( bulkImplicitModel.timeProvider(),
-                  DataOutputParameters( step ) ),
-    linftyl2BulkError_( 0 ),
-    l2h1BulkError_( 0 ),
-    linftyl2SurfaceError_( 0 ),
-    l2h1SurfaceError_( 0 )
-  {}
-#endif
-
   CoupledHeatScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
                      ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid,
                      const unsigned int step = 0 )
     : BaseType( bulkScheme, surfaceScheme, exchangeModel, coupledGrid ),
-      // error stuffles
+      // error storage
       errorOutput_( exchangeModel.timeProvider(),
                     DataOutputParameters( step ) ),
       linftyl2BulkError_( 0 ),
@@ -228,16 +205,11 @@ public:
           + ( surfaceMass - oldSurfaceMass );
         if( std::abs( change ) > std::sqrt(solverEps()) )
           {
-            std::cout << "bulk mass: " << bulkMass << " change: " << std::abs( bulkMass - oldBulkMass )
-                      << "\nsurface mass: " << surfaceMass << " change: " << std::abs( surfaceMass - oldSurfaceMass ) << std::endl;
+            std::cout << "bulk mass: " << bulkMass << " change: " << ( bulkMass - oldBulkMass ) << "\n"
+                      << "surface mass: " << surfaceMass << " change: " << ( surfaceMass - oldSurfaceMass ) << std::endl;
             std::cout << "sum change: " << change << std::endl;
             assert(0);
           }
-      }
-    else
-      {
-        std::cout << "bulk mass: " << bulkMass
-                  << "\nsurface mass: " << surfaceMass << std::endl;
       }
 
     oldBulkMass = bulkMass;
