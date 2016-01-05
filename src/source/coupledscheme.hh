@@ -139,13 +139,13 @@ struct FemSchemeHolder
     assert(0);
   }
 
-  const int dofs() const
+  const int nDofs() const
   {
     int tmp = discreteSpace_.size();
     return Dune::Fem::MPIManager::comm().sum( tmp );
   }
 
-  const int elements() const
+  const int nElements() const
   {
     int elements_ = 0;
     typedef typename DiscreteFunctionSpaceType::IteratorType IteratorType;
@@ -166,6 +166,45 @@ struct FemSchemeHolder
   {
     H1NormType h1norm( gridPart_ );
     return h1norm.distance( exact, solution_ );
+  }
+
+  double mass() const
+  {
+    using QuadratureType = Dune::Fem::CachingQuadrature< GridPartType, 0 >;
+
+    double ret = 0;
+
+    // element loop
+    for( auto e : elements( gridView() ) )
+      {
+        // find element information
+        const auto geo = e.geometry();
+        const auto& uLocal = solution().localFunction( e );
+
+        // construct quadrature
+        QuadratureType quadrature( e, discreteSpace_.order() );
+        const unsigned int numQuadraturePoints = quadrature.nop();
+
+        // quadrature loop
+        for( unsigned int pt = 0; pt < numQuadraturePoints; ++pt )
+          {
+            // obtain quadrature rule
+            const auto& xLocal = quadrature.point( pt );
+            const double weight = quadrature.weight( pt ) * geo.integrationElement( xLocal );
+
+            // evaluate solution
+            typename DiscreteFunctionType :: RangeType ux;
+            uLocal.evaluate( quadrature[ pt ], ux );
+
+            // multiply by quadrature weight
+            ux *= weight;
+
+            // add to result
+            ret += ux;
+          }
+      }
+
+    return ret;
   }
 
 protected:
@@ -346,14 +385,14 @@ public:
     return iterations_;
   }
 
-  const int dofs() const
+  const int nDofs() const
   {
-    return bulk().dofs() + surface().dofs();
+    return bulk().nDofs() + surface().nDofs();
   }
 
-  const int elements() const
+  const int nElements() const
   {
-    return bulk().elements() + surface().elements();
+    return bulk().nElements() + surface().nElements();
   }
 
 protected:

@@ -217,41 +217,10 @@ public:
 
     // compute mass
     static double oldBulkMass = 0;
-    double bulkMass = 0;
-    for( auto e : elements( bulk().gridView() ) )
-      {
-        const auto geo = e.geometry();
-        const double volume = geo.volume();
-
-        const auto& uLocal = bulkSolution().localFunction( e );
-        const auto& uLocalDofVector = uLocal.localDofVector();
-        double val = 0;
-        for( auto ux : uLocalDofVector )
-          {
-            val += ux;
-          }
-        val /= uLocalDofVector.size();
-        bulkMass += val * volume;
-      }
+    const double bulkMass = bulk().mass();
 
     static double oldSurfaceMass = 0;
-    double surfaceMass = 0;
-    for( auto e : elements( surface().gridView() ) )
-      {
-        const auto geo = e.geometry();
-        const double volume = geo.volume();
-
-        const auto& uLocal = surfaceSolution().localFunction( e );
-        const auto& uLocalDofVector = uLocal.localDofVector();
-        double val = 0;
-        for( auto ux : uLocalDofVector )
-          {
-            val += ux;
-          }
-        val /= uLocalDofVector.size();
-
-        surfaceMass += val * volume;
-      }
+    const double surfaceMass = surface().mass();
 
     if( not first )
       {
