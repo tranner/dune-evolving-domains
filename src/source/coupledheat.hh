@@ -227,6 +227,11 @@ public:
     d = beta() * RangeType(1);
   }
 
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = RangeType(0);
+  }
+
   //! the exact solution
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
@@ -305,13 +310,18 @@ public:
   virtual void m(const DomainType& x, RangeType &m) const
   {
     // set to zero
-    m = -alpha() * beta() * RangeType(1);
+    m = RangeType(0);
   }
 
   virtual void d(const DomainType& x, RangeType &d) const
   {
     // set to zero
-    d = 0;
+    d = RangeType(0);
+  }
+
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = -alpha() * beta() * RangeType(1);
   }
 
   //! return true if given point belongs to the Dirichlet boundary (default is true)
