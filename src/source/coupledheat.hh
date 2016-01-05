@@ -84,7 +84,6 @@ public:
 		 RangeType& phi) const
   {
     phi = M_PI * cos( M_PI * time() ) * x[0] * x[1];
-    phi *= alpha();
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -190,14 +189,13 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = 3.0 * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1];
-    phi *= beta();
+    phi = 1.0 / beta() * ( 2.0 + alpha() ) * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1];
   }
 
   virtual void boundaryRhs( const DomainType& x,
 			    RangeType& value ) const
   {
-    value = 0.0;
+    value = RangeType(0);
   }
 
   //! diffusion coefficient (default = Id)
@@ -236,7 +234,7 @@ public:
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = 3.0 * sin( M_PI * time() ) * x[0] * x[1];
+    phi = 1.0 / beta() * ( 2.0 + alpha() ) * sin( M_PI * time() ) * x[0] * x[1];
   }
 
   //! the jacobian of the exact solution
