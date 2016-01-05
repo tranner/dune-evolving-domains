@@ -5,6 +5,7 @@ fem.solver.verbose: 0
 #fem.io.macroGridFile_2d: ../data/unitcube-2d.dgf
 #fem.io.macroGridFile_2d: ../data/spiral-2d.dgf
 fem.io.macroGridFile_2d: ../data/sphere.dgf
+# fem.io.macroGridFile_2d: ../data/ball2.dgf
 fem.io.macroGridFile_3d: ../data/ball.dgf
 #fem.io.macroGridFile_2d: ../data/hemi-sphere.dgf
 fem.io.macroGridFile_1d: ../data/circle.dgf
