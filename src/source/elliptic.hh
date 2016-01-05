@@ -45,7 +45,6 @@
 #include <dune/fem/operator/common/stencil.hh>
 
 #include <dune/fem/operator/common/differentiableoperator.hh>
-#include "dirichletconstraints.hh"
 
 // EllipticOperator
 // ----------------
@@ -252,14 +251,18 @@ void EllipticOperator< DiscreteFunction, Model >
 		  continue;
 		}
 
+	      // extract intersection geometry
+	      const auto& intersectionGeometry = intersection.geometry();
+
 	      // find quadrature rule on intersection
 	      FaceQuadratureType quadInside( dfSpace.gridPart(), intersection, quadOrder, FaceQuadratureType :: INSIDE );
 	      const size_t numQuadraturePoints = quadInside.nop();
 
 	      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 		{
-		  // find quadrature weight
-		  const double weight = quadInside.weight( pt );
+		  // find quadrature
+		  const typename FaceQuadratureType::LocalCoordinateType &xLocal = quadInside.localPoint( pt );
+		  double weight = quadInside.weight( pt ) * intersectionGeometry.integrationElement( xLocal );
 
 		  // evaluate boundary flux
 		  RangeType vu, avu;
@@ -366,6 +369,9 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
 		  continue;
 		}
 
+	      // extract intersection geometry
+	      const auto& intersectionGeometry = intersection.geometry();
+
 	      // find quadrature rule on intersection
 	      FaceQuadratureType quadInside( dfSpace.gridPart(), intersection, 2*dfSpace.order(),
 					     FaceQuadratureType :: INSIDE );
@@ -373,8 +379,9 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
 
 	      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 		{
-		  // find quadrature weight
-		  const double weight = quadInside.weight( pt );
+		  // find quadrature
+		  const typename FaceQuadratureType::LocalCoordinateType &xLocal = quadInside.localPoint( pt );
+		  double weight = quadInside.weight( pt ) * intersectionGeometry.integrationElement( xLocal );
 
 		  // evaluate basis functions at quadrature point
 		  baseSet.evaluateAll( quadInside[ pt ], phi );
