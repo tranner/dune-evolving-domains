@@ -247,24 +247,6 @@ public:
   typedef DifferentiableMixingOperator< SurfaceBulkLinearOperatorType, ExchangeModelType, CoupledGridType >
     SurfaceBulkOperatorType;
 
-#if 0
-  CoupledScheme( BulkGridPartType &bulkGridPart, SurfaceGridPartType &surfaceGridPart,
-		 const BulkModelType &bulkModel, const SurfaceModelType &surfaceModel,
-		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
-    : bulkScheme_( bulkGridPart, bulkModel ),
-      surfaceScheme_( surfaceGridPart, surfaceModel ),
-      coupledGrid_( coupledGrid ),
-      // the exchange operators
-      bulkSurfaceImplicitOperator_( exchangeModel, bulk().space() ),
-      surfaceBulkImplicitOperator_( exchangeModel, surface().space() ),
-      // create exchange linear operators
-      bulkSurfaceLinearOperator_( "assembled linear operator", bulk().space(), surface().space() ),
-      surfaceBulkLinearOperator_( "assembled linear operator", surface().space(), bulk().space() ),
-      // tolerance for iterative solver
-      solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) )
-  {}
-#endif
-
   CoupledScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
 		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
   : bulkScheme_( bulkScheme ),
@@ -359,9 +341,6 @@ public:
 	update = oldBulkSolution.normSquaredDofs() + oldSurfaceSolution.normSquaredDofs();
 	update = Dune::Fem::MPIManager::comm().sum( update );
 
-	if( update < eps )
-	  break;
-
 	if( Dune::Fem::MPIManager::rank() == 0 and verbose_ )
 	  {
 	    std::cout << " it: " << iterations_
@@ -369,14 +348,10 @@ public:
 		    << " bulk solver it: " << bulkInvOp.iterations()
 		    << " surface solver it: " << surfaceInvOp.iterations()
 		    << std::endl;
-	    std::cout << oldBulkSolution.scalarProductDofs( oldBulkSolution ) << " and "
-		      << oldSurfaceSolution.scalarProductDofs( oldSurfaceSolution ) << std::endl;
-
-	    if( iterations_ > 5 )
-	      { int qq; std::cin >> qq; }
 	  }
 
-	prepare();
+	if( update < eps )
+	  break;
       }
   }
 
