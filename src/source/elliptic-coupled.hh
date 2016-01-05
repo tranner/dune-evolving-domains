@@ -94,9 +94,10 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
 ::operator() ( const BulkDiscreteFunctionType &uBulk,
 	       SurfaceDiscreteFunctionType &wSurf ) const
 {
+  // clear destination
   wSurf.clear();
 
-  // clear destination
+  // extract grid parts
   const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
   const auto& bulkGridPart = coupledGrid().bulkGridPart();
 
@@ -104,6 +105,7 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
   using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
   for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
+    // extract geometry
     const auto& geometry = entity.geometry();
 
     // find bulk entity
@@ -115,15 +117,19 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
     const auto uBulkLocal = uBulk.localFunction( bulkEntity );
     auto wSurfLocal = wSurf.localFunction( entity );
 
+    // construct quadrature
     const int quadOrder = uBulkLocal.order() + wSurfLocal.order();
     QuadratureType quadrature( entity, quadOrder );
     unsigned int numQuadraturePoints = quadrature.nop();
 
+    // quadrature loop
     for( unsigned int pt = 0; pt < numQuadraturePoints; ++pt )
       {
+	// extract quadrature rule
 	const auto xLocal = quadrature.point( pt );
 	const double weight = quadrature.weight( pt ) * geometry.integrationElement( xLocal );
 
+	// convert quadrature point to local coordinate on bulk element
 	const auto xGlobal = geometry.global( xLocal );
 	const auto xBulkLocal = bulkGeometry.local( xGlobal );
 
@@ -139,7 +145,7 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
 	cSurfx *= weight;
 
 	// add to rhs
-	wSurfLocal.axpy( xLocal, cSurfx );
+	wSurfLocal.axpy( quadrature[ pt ], cSurfx );
       }
   }
 
@@ -153,9 +159,10 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
 ::operator() ( const SurfaceDiscreteFunctionType &uSurf,
 	       BulkDiscreteFunctionType &wBulk ) const
 {
+  // clear destination
   wBulk.clear();
 
-  // clear destination
+  // extract grid parts
   const auto& surfaceGridPart = coupledGrid().surfaceGridPart();
   const auto& bulkGridPart = coupledGrid().bulkGridPart();
 
@@ -163,6 +170,7 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
   using SurfaceGridView = typename CoupledGrid :: SurfaceGeoGridPartType :: GridViewType;
   for( const auto& entity : elements( static_cast< SurfaceGridView >( surfaceGridPart ) ) )
   {
+    // exact geometry
     const auto& geometry = entity.geometry();
 
     // find bulk entity
@@ -174,21 +182,25 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
     const auto uSurfLocal = uSurf.localFunction( entity );
     auto wBulkLocal = wBulk.localFunction( bulkEntity );
 
+    // construct quadrature
     const int quadOrder = uSurfLocal.order() + wBulkLocal.order();
     QuadratureType quadrature( entity, quadOrder );
     unsigned int numQuadraturePoints = quadrature.nop();
 
+    // quadrature loop
     for( unsigned int pt = 0; pt < numQuadraturePoints; ++pt )
       {
+	// extract quadrature rule
 	const auto xLocal = quadrature.point( pt );
 	const double weight = quadrature.weight( pt ) * geometry.integrationElement( xLocal );
 
+	// convert quadrature point to local coordinate on bulk element
 	const auto xGlobal = geometry.global( xLocal );
 	const auto xBulkLocal = bulkGeometry.local( xGlobal );
 
 	// evaluate local functions
 	typename SurfaceDiscreteFunctionType :: RangeType uSurfx;
-	uSurfLocal.evaluate( xLocal, uSurfx );
+	uSurfLocal.evaluate( quadrature[ pt ], uSurfx );
 	typename BulkDiscreteFunctionType :: RangeType cBulkx;
 
 	// evaluate flux
