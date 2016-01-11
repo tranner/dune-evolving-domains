@@ -1,12 +1,12 @@
 /**************************************************************************
- 
+
   The dune-fem module is a module of DUNE (see www.dune-project.org).
-  It is based on the dune-grid interface library 
+  It is based on the dune-grid interface library
   extending the grid interface by a number of discretization algorithms
   for solving non-linear systems of partial differential equations.
 
   Copyright (C) 2003 - 2014 Robert Kloefkorn
-  Copyright (C) 2003 - 2010 Mario Ohlberger 
+  Copyright (C) 2003 - 2010 Mario Ohlberger
   Copyright (C) 2004 - 2014 Andreas Dedner
   Copyright (C) 2005        Adrian Burri
   Copyright (C) 2005 - 2014 Mirko Kraenkel
@@ -20,12 +20,12 @@
   Copyright (C) 2013        Tom Ranner
 
 
-  The dune-fem module is free software; you can redistribute it and/or 
-  modify it under the terms of the GNU General Public License as 
-  published by the Free Software Foundation; either version 2 of 
+  The dune-fem module is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; either version 2 of
   the License, or (at your option) any later version.
 
-  The dune-fem module is distributed in the hope that it will be useful, 
+  The dune-fem module is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
@@ -33,7 +33,7 @@
   You should have received a copy of the GNU General Public License along
   with this program; if not, write to the Free Software Foundation, Inc.,
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- 
+
 **************************************************************************/
 #ifndef DEFORMATION_HH
 #define DEFORMATION_HH
@@ -48,7 +48,7 @@
 template< int dimWorld >
 struct DeformationCoordFunction
 {
-  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;	
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
 
   typedef typename FunctionSpaceType::DomainType DomainType;
   typedef typename FunctionSpaceType::RangeType RangeType;
@@ -59,7 +59,9 @@ struct DeformationCoordFunction
 
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
-    //    const double at = 1.0 + 0.25 * sin( time_ );
+#if 0
+    const double at = 1.0 + 0.25 * sin( time_ );
+#endif
 #warning set a(t) = 1
     const double at = 1.0;
 
@@ -74,10 +76,10 @@ private:
   double time_;
 };
 
-//! deformation depending on a discrete function 
+//! deformation depending on a discrete function
 template <class DiscreteFunctionType>
 class DeformationDiscreteFunction
-: public Dune::DiscreteCoordFunction< double, 3, DeformationDiscreteFunction< DiscreteFunctionType > > 
+: public Dune::DiscreteCoordFunction< double, 3, DeformationDiscreteFunction< DiscreteFunctionType > >
 {
   typedef Dune::DiscreteCoordFunction< double, 3, DeformationDiscreteFunction< DiscreteFunctionType > > BaseType;
 
@@ -91,26 +93,26 @@ public:
 
   template< class HostEntity , class RangeVector >
   void evaluate ( const HostEntity &hostEntity, unsigned int corner,
-                  RangeVector &y ) const
-  { 
+		  RangeVector &y ) const
+  {
     DUNE_THROW(Dune::NotImplemented,"evaluate not implemented for codim > 0");
   }
 
-  template <class RangeVector> 
-  void evaluate ( const typename GridType :: template Codim<0>::Entity &entity, 
-		  unsigned int corner, 
-                  RangeVector &y ) const
-  {  
+  template <class RangeVector>
+  void evaluate ( const typename GridType :: template Codim<0>::Entity &entity,
+		  unsigned int corner,
+		  RangeVector &y ) const
+  {
     y = entity.geometry()[corner];
 
     return;
     typedef typename GridType::ctype  ctype;
     enum { dim = GridType::dimension };
-   
+
     const Dune::ReferenceElement< ctype, dim > &refElement
       = Dune::ReferenceElements< ctype, dim >::general( entity.type() );
 
-    LocalFunctionType localVertices = vertices_.localFunction( entity );	
+    LocalFunctionType localVertices = vertices_.localFunction( entity );
 
     localVertices.evaluate( refElement.position( corner, dim ), y );
   }
@@ -124,4 +126,3 @@ protected:
 };
 
 #endif // #ifndef DEFORMATION_HH
-
