@@ -120,7 +120,7 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceDataOutputType surfaceDataOutput( coupledGrid.surfaceGrid(), surfaceIoTuple, DataOutputParameters( step, "surface" ) );
 
   const double endTime  = Dune::Fem::Parameter::getValue< double >( "heat.endtime", 2.0 );
-  const double dtreducefactor = Dune::Fem::Parameter::getValue< double >("heat.reducetimestepfactor", 1 );
+  const double dtreducefactor = Dune::Fem::Parameter::getValue< double >("heat.reducetimestepfactor", 0.25 );
   double timeStep = Dune::Fem::Parameter::getValue< double >( "heat.timestep", 0.125 );
 
   timeStep *= pow(dtreducefactor,step);
