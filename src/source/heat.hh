@@ -62,6 +62,7 @@ public:
   typedef typename BaseType :: DomainType           DomainType;
   typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
   typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
 
   enum { dimRange  = BaseType :: dimRange };
   enum { dimDomain = BaseType :: dimDomain };
@@ -130,7 +131,7 @@ public:
   //! capacity coefficient (default = 1)
   virtual void d(const DomainType& x, RangeType &d) const
   {
-    d = RangeType(0);
+    d = RangeType(1);
   }
 
   //! the exact solution
