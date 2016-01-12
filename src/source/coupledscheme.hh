@@ -207,6 +207,8 @@ struct FemSchemeHolder
     return ret;
   }
 
+  const GridPartType& gridPart() const { return gridPart_; }
+
 protected:
   const ModelType &implicitModel_; // the mathematical model
 

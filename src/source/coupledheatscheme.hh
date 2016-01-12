@@ -14,11 +14,16 @@
 // local includes
 #include "coupledscheme.hh"
 
+template< class GridPart >
 struct ErrorOutput
 {
-  ErrorOutput( const Dune::Fem::TimeProviderBase &tp,
-	       const DataOutputParameters &parameter )
-    : tp_( tp )
+  ErrorOutput( const GridPart& gridPart,
+               const Dune::Fem::TimeProviderBase &tp,
+               const DataOutputParameters &parameter )
+    : gridPart_( gridPart ),
+      tp_( tp ),
+      maxh_( 0.0 ),
+      maxTau_( 0.0 )
   {
     init( parameter );
   }
@@ -26,15 +31,23 @@ struct ErrorOutput
   ~ErrorOutput()
   {
     if( file_ )
+      {
+        file_ << "# h: " << maxh_ << std::endl;
+        file_ << "# tau: " << maxTau_ << std::endl;
+      }
+
+    if( file_ )
       file_.close();
   }
 
   void write( const double l2BulkError, const double h1BulkError,
-	      const double l2SurfaceError, const double h1SurfaceError )
+              const double l2SurfaceError, const double h1SurfaceError )
   {
     if( file_ )
       file_ << tp_.time() << "  " << l2BulkError << "  " << h1BulkError
 	    << "  " << l2SurfaceError << "  " << h1SurfaceError << std::endl;
+
+    computeMeshSize();
   }
 
 protected:
@@ -53,12 +66,38 @@ protected:
       }
 
     if( file_ )
-      file_ << "# time  $L^2(\\Omega(t))$ error  $H^1(\\Omega(t))$ error  "
-	    << "$L^2(\\Gamma(t))$ error  $H^1(\\Gamma(t))$ error" << std::endl;
+      {
+        file_ << "# time  $L^2(\\Omega(t))$ error  $H^1(\\Omega(t))$ error  "
+              << "$L^2(\\Gamma(t))$ error  $H^1(\\Gamma(t))$ error" << std::endl;
+      }
+  }
+
+  void computeMeshSize()
+  {
+    for( auto e = gridPart_.template begin< 0 >();
+         e != gridPart_.template end< 0 >(); ++e )
+      {
+        const auto geo = e.geometry();
+        for( unsigned int i = 0; i < geo.corners(); ++i )
+          {
+            for( unsigned int j = 0; j < i; ++j )
+              {
+                const double dist = ( geo.corner( i ) - geo.corner( j ) ).two_norm();
+                maxh_ = std::max( dist, maxh_ );
+              }
+          }
+      }
+
+    maxTau_ = std::max( tp_.deltaT(), maxTau_ );
   }
 
 private:
+  const GridPart& gridPart_;
   const Dune::Fem::TimeProviderBase &tp_;
+
+  double maxh_;
+  double maxTau_;
+
   mutable std::ofstream file_;
 };
 
@@ -104,14 +143,16 @@ struct TemporalFemSchemeHolder : public FemSchemeHolder< ImplicitModel, codim >
      interpolation( explicitModel_.initialFunction(), solution() );
   }
 
+  using BaseType::gridPart;
+
 private:
   using BaseType::gridPart_;
   using BaseType::discreteSpace_;
   using BaseType::implicitModel_;
+  using BaseType::gridView;
 
   using BaseType::solution;
   using BaseType::rhs;
-  using BaseType::gridView;
 
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs
@@ -144,12 +185,14 @@ public:
   typedef typename BulkFemSchemeHolderType :: DiscreteFunctionType BulkDiscreteFunctionType;
   typedef typename SurfaceFemSchemeHolderType :: DiscreteFunctionType SurfaceDiscreteFunctionType;
 
+  typedef ErrorOutput< typename BulkFemSchemeHolderType :: GridPartType > ErrorOutputType;
+
   CoupledHeatScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
                      ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid,
                      const unsigned int step = 0 )
     : BaseType( bulkScheme, surfaceScheme, exchangeModel, coupledGrid ),
       // error storage
-      errorOutput_( exchangeModel.timeProvider(),
+      errorOutput_( bulkScheme.gridPart(), exchangeModel.timeProvider(),
                     DataOutputParameters( step ) ),
       linftyl2BulkError_( 0 ),
       l2h1BulkError_( 0 ),
@@ -241,7 +284,7 @@ protected:
   using BaseType::surface;
 
 private:
-  ErrorOutput errorOutput_;
+  ErrorOutputType errorOutput_;
   double linftyl2BulkError_;
   double l2h1BulkError_;
   double linftyl2SurfaceError_;
