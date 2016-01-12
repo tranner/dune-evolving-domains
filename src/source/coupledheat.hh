@@ -136,7 +136,9 @@ public:
   virtual void uJacobian(const DomainType& x,
 			 JacobianRangeType& ret) const
   {
-    ret = JacobianRangeType(0);
+    ret[0][0] = sin( M_PI * time() ) * x[1];
+    ret[0][1] = sin( M_PI * time() ) * x[0];
+    ret[0][2] = 0;
   }
 
   //! return true if given point belongs to the Dirichlet boundary (default is true)
@@ -189,7 +191,8 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = 1.0 / beta() * ( 2.0 + alpha() ) * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1];
+    phi = 1.0 / beta() * ( 2.0 + alpha() ) * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1]
+      + 2.0 * sin( M_PI * time() ) * x[0]*x[1];
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -241,7 +244,31 @@ public:
   virtual void uJacobian(const DomainType& x,
 			 JacobianRangeType& ret) const
   {
-    ret = JacobianRangeType(0);
+    const double fact = 1.0 / beta() * ( 2.0 + alpha() ) * sin( M_PI * time() );
+
+    JacobianRangeType grad;
+    grad[ 0 ][ 0 ] = fact * x[1];
+    grad[ 0 ][ 1 ] = fact * x[0];
+    grad[ 0 ][ 2 ] = 0.0;
+
+#warning using stationary surface here also a(t) = 1
+    const double at = 1.0;// + 0.25 * sin( time() );
+    DomainType nu;
+    nu[ 0 ] = 2.0 * x[ 0 ] / at;
+    nu[ 1 ] = 2.0 * x[ 1 ];
+    nu[ 2 ] = 2.0 * x[ 2 ];
+    nu /= nu.two_norm();
+
+    double dot = 0;
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	dot += nu[ i ] * grad[ 0 ][ i ];
+      }
+
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	ret[ 0 ][ i ] = grad[ 0 ][ i ] - dot * nu[ i ];
+      }
   }
 
   //! return true if given point belongs to the Dirichlet boundary (default is true)
