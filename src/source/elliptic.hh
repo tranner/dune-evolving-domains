@@ -165,7 +165,7 @@ protected:
   typedef typename BaseType::QuadratureType QuadratureType;
 
 public:
-  //! contructor
+  //! constructor
   DifferentiableEllipticOperator ( const ModelType &model, const DiscreteFunctionSpaceType &space, bool sw=true )
   : BaseType( model, space )
   {}
