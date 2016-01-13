@@ -83,7 +83,12 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = M_PI * cos( M_PI * time() ) * x[0] * x[1];
+    // helper variables
+    const double c = cos( time() );
+    const double s = sin( time() );
+
+    // return variable
+    phi = 0.5 * x[0] * x[1] * c * ( 8 + 7 * s ) / ( 4 + s );
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -129,15 +134,15 @@ public:
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = sin( M_PI * time() ) * x[0] * x[1];
+    phi = sin( time() ) * x[0] * x[1];
   }
 
   //! the jacobian of the exact solution
   virtual void uJacobian(const DomainType& x,
 			 JacobianRangeType& ret) const
   {
-    ret[0][0] = sin( M_PI * time() ) * x[1];
-    ret[0][1] = sin( M_PI * time() ) * x[0];
+    ret[0][0] = sin( time() ) * x[1];
+    ret[0][1] = sin( time() ) * x[0];
     ret[0][2] = 0;
   }
 
@@ -191,8 +196,13 @@ public:
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = 1.0 / beta() * ( 2.0 + alpha() ) * ( M_PI * cos( M_PI * time() ) + 6.0 * sin( M_PI * time() ) ) * x[0]*x[1]
-      + 2.0 * sin( M_PI * time() ) * x[0]*x[1];
+    // helper variables
+    const double s = sin( time() );
+    const double c = cos( time() );
+    const double s2t = sin( 2*time() );
+
+    // return variable
+    phi = x[0]*x[1] * ( 24 * s + c * ( 4 + 3 * s + 16 * 1.0 / std::sqrt( 4.0 + s ) ) + 1.0 / std::sqrt( 4.0 + s ) * ( 4 * s * ( 28 + s ) + 5 * s2t ) ) / ( 4 + s );
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -237,22 +247,25 @@ public:
   virtual void u(const DomainType& x,
 		 RangeType& phi) const
   {
-    phi = 1.0 / beta() * ( 2.0 + alpha() ) * sin( M_PI * time() ) * x[0] * x[1];
+    // helper variables
+    const double s = sin( time() );
+
+    // return variable
+    phi = x[0] * x[1] * s * ( 1 + 4 / std::sqrt( 4 + s ) );
   }
 
   //! the jacobian of the exact solution
   virtual void uJacobian(const DomainType& x,
 			 JacobianRangeType& ret) const
   {
-    const double fact = 1.0 / beta() * ( 2.0 + alpha() ) * sin( M_PI * time() );
+    const double fact = 1.0 / beta() * ( 2.0 + alpha() ) * sin( time() );
 
     JacobianRangeType grad;
     grad[ 0 ][ 0 ] = fact * x[1];
     grad[ 0 ][ 1 ] = fact * x[0];
     grad[ 0 ][ 2 ] = 0.0;
 
-#warning using stationary surface here also a(t) = 1
-    const double at = 1.0;// + 0.25 * sin( time() );
+    const double at = 1.0 + 0.25 * sin( time() );
     DomainType nu;
     nu[ 0 ] = 2.0 * x[ 0 ] / at;
     nu[ 1 ] = 2.0 * x[ 1 ];
