@@ -28,7 +28,7 @@
 #include "heatmodel.hh"
 #include "coupledheatscheme.hh"
 
-// assemble-solve-estimate-mark-refine-IO-error-doitagain
+// Assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class CoupledGridType >
 void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 {

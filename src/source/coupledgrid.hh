@@ -128,12 +128,12 @@ struct CoupledGrid
   const HBulkGridType &bulkGrid() const { return bulkGrid_; }
   const HSurfaceGridType &surfaceGrid() const { return *surfaceGridPtr_; }
 
-  const unsigned int seedIndex( const SurfaceEntityType &entity ) const
+  unsigned int seedIndex( const SurfaceEntityType &entity ) const
   {
     return factory_.insertionIndex( entity );
   }
 
-  const unsigned int maxSeedIndex() const
+  unsigned int maxSeedIndex() const
   {
     return bulkSeedVector_.size();
   }
