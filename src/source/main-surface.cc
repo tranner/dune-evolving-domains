@@ -88,10 +88,29 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [Setup the grid part for a deforming domain]
 
   // type of the mathematical model used
-  typedef SurfaceHeatProblem< FunctionSpaceType > ProblemType;
   typedef HeatModel< FunctionSpaceType, GridPartType > ModelType;
+  typedef typename ModelType :: ProblemType ProblemType;
 
-  ProblemType problem( timeProvider ) ;
+  // choose problem
+  ProblemType* problemPtr = 0;
+  const std::string problemNames [] = { "surface_heat", "surface_parabolic" };
+  const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "heat.problem", problemNames );
+  switch( problemNumber )
+    {
+    case 0:
+      problemPtr = new SurfaceHeatProblem< FunctionSpaceType > ( timeProvider );
+      break;
+    case 1:
+      problemPtr = new SurfaceParabolicProblem< FunctionSpaceType > ( timeProvider );
+      break;
+
+    default:
+      std::cerr << "unrecognised problem name" << std::endl;
+    }
+
+  // recover problem
+  assert( problemPtr );
+  ProblemType& problem = *problemPtr;
 
   // implicit model for left hand side
   ModelType implicitModel( problem, gridPart, true );

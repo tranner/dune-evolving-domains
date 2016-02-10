@@ -29,6 +29,8 @@ heat.level: 0
 heat.repeats: 10
 heat.reducetimestepfactor: 0.25
 
+heat.problem:surface_parabolic
+
 spiral.timestep: 0.01 # explicit rhs: 0.005
 spiral.endtime: 20.
 spiral.level: 0
