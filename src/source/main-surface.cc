@@ -88,7 +88,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [Setup the grid part for a deforming domain]
 
   // type of the mathematical model used
-  typedef TimeDependentCosinusProduct< FunctionSpaceType > ProblemType;
+  typedef SurfaceHeatProblem< FunctionSpaceType > ProblemType;
   typedef HeatModel< FunctionSpaceType, GridPartType > ModelType;
 
   ProblemType problem( timeProvider ) ;
