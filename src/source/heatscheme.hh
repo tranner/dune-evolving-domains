@@ -46,11 +46,16 @@
 // local includes
 #include "femscheme.hh" 
 
+template< class GridPart >
 struct ErrorOutput
 {
-  ErrorOutput( const Dune::Fem::TimeProviderBase &tp,
+  ErrorOutput( const GridPart& gridPart,
+	       const Dune::Fem::TimeProviderBase &tp,
 	       const DataOutputParameters &parameter )
-    : tp_( tp )
+    : gridPart_( gridPart ),
+      tp_( tp ),
+      maxh_( 0.0 ),
+      maxTau_( 0.0 )
   {
     init( parameter );
   }
@@ -58,13 +63,19 @@ struct ErrorOutput
   ~ErrorOutput()
   {
     if( file_ )
-      file_.close();
+      {
+        file_ << "# h: " << maxh_ << std::endl;
+        file_ << "# tau: " << maxTau_ << std::endl;
+	file_.close();
+      }
   }
 
   void write( const double l2Error, const double h1Error )
   {
     if( file_ )
       file_ << tp_.time() << "  " << l2Error << "  " << h1Error << std::endl;
+
+    computeMeshSize();
   }
 
 protected:
@@ -86,8 +97,32 @@ protected:
       file_ << "# time  $L^2$ error  $H^1$ error" << std::endl;
   }
 
+  void computeMeshSize()
+  {
+    for( auto e = gridPart_.template begin< 0 >();
+         e != gridPart_.template end< 0 >(); ++e )
+      {
+        const auto geo = e.geometry();
+        for( unsigned int i = 0; i < geo.corners(); ++i )
+          {
+            for( unsigned int j = 0; j < i; ++j )
+              {
+                const double dist = ( geo.corner( i ) - geo.corner( j ) ).two_norm();
+                maxh_ = std::max( dist, maxh_ );
+              }
+          }
+      }
+
+    maxTau_ = std::max( tp_.deltaT(), maxTau_ );
+  }
+
 private:
+  const GridPart& gridPart_;
   const Dune::Fem::TimeProviderBase &tp_;
+
+  double maxh_;
+  double maxTau_;
+
   mutable std::ofstream file_;
 };
 
@@ -109,6 +144,8 @@ struct HeatScheme : public FemScheme<ImplicitModel>
   typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
   typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
 
+  typedef ErrorOutput< GridPartType > ErrorOutputType;
+
   HeatScheme( GridPartType &gridPart, 
               const ImplicitModelType& implicitModel,
               const ExplicitModelType& explicitModel,
@@ -116,7 +153,7 @@ struct HeatScheme : public FemScheme<ImplicitModel>
   : BaseType(gridPart, implicitModel),
     explicitModel_(explicitModel),
     explicitOperator_( explicitModel_, discreteSpace_ ),
-    errorOutput_( implicitModel_.timeProvider(), DataOutputParameters( step ) ),
+    errorOutput_( gridPart, implicitModel_.timeProvider(), DataOutputParameters( step ) ),
     linftyl2Error_( 0 ),
     l2h1Error_( 0 )
   {}
@@ -174,7 +211,7 @@ private:
   const ExplicitModelType &explicitModel_;
   typename BaseType::EllipticOperatorType explicitOperator_; // the operator for the rhs 
 
-  ErrorOutput errorOutput_;
+  ErrorOutputType errorOutput_;
   double linftyl2Error_;
   double l2h1Error_;
 };
