@@ -73,17 +73,39 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
 #endif
 
-  // choose problem
-  typedef BulkHeatProblem< FunctionSpaceType > BulkProblemType;
-  BulkProblemType bulkProblem( timeProvider );
-  typedef SurfaceHeatProblem< FunctionSpaceType > SurfaceProblemType;
-  SurfaceProblemType surfaceProblem( timeProvider );
-  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
-  ExchangeProblemType exchangeProblem( timeProvider );
-
   // type of the mathematical model used
   using BulkHeatModelType = HeatModel< FunctionSpaceType, BulkGridPartType >;
   using SurfaceHeatModelType = HeatModel< FunctionSpaceType, SurfaceGridPartType >;
+
+  // choose problem
+  using BulkProblemType = typename BulkHeatModelType :: ProblemType;
+  BulkProblemType* bulkProblemPtr = 0;
+  using SurfaceProblemType = typename SurfaceHeatModelType :: ProblemType;
+  SurfaceProblemType* surfaceProblemPtr = 0;
+
+  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic" };
+  const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
+  switch( problemNumber )
+    {
+    case 0:
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType >( timeProvider );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
+    case 1:
+      bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
+      surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
+      break;
+    default:
+      std::cerr << "unrecognised problem name" << std::endl;
+    }
+
+  // recover problems
+  assert( bulkProblemPtr );
+  assert( surfaceProblemPtr );
+  BulkProblemType& bulkProblem = *bulkProblemPtr;
+  SurfaceProblemType& surfaceProblem = *surfaceProblemPtr;
+  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
+  ExchangeProblemType exchangeProblem( timeProvider );
 
   BulkHeatModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
   BulkHeatModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
