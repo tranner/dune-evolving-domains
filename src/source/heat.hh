@@ -45,9 +45,9 @@
 
 double Power( const double y, const int a )
 {
-  assert( a >= 0 );
+  assert( a > 0 );
 
-  if( a == 0 )
+  if( a == 1 )
     return y;
 
   return y * Power( y, a-1 );
@@ -204,30 +204,54 @@ public:
     : BaseType( timeProvider )
   {}
 
+  double Sin(const double a) const { return sin(a); }
+  double Cos(const double a) const { return cos(a); }
+
   //! the right hand side data (default = 0)
   virtual void f(const DomainType& x,
 		 RangeType& phi) const
   {
-    assert(0);
-    // define evolution of surface
-    const double at = 1.0 + 0.25 * sin( time() );
-    const double apt = 0.25 * cos( time() );
+    const double xx = x[0];
+    const double yy = x[1];
+    const double zz = x[2];
+    const double tt = time();
 
-    // calculated surface parameters
-    const double divGammaV = 0.5 * at * apt * ( x[1]*x[1] + x[2]*x[2] ) / ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) );
-    const double N1 = 1/at * x[0] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
-    const double N2 = x[1] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
-    const double H = ( 2.0 * x[0] * x[0] + at * ( 1 + at ) * ( x[1]*x[1] + x[2]*x[2] ) )
-      / ( sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] ) * ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) ) );
+    phi = (-12*Power(xx,4)*yy*Power(-1 + Cos(2*tt) - 8*Sin(tt),2) + 
+     16*Power(xx,2)*yy*Sin(tt)*Power(4 + Sin(tt),4) - 
+     yy*Sin(tt)*Power(4 + Sin(tt),5) + 
+     4*Power(xx,5)*Power(Sin(tt),2)*
+      (8*(48 + 16*Sin(tt) + Power(Sin(tt),2)) + 
+        yy*(8*Cos(tt)*(3 + Sin(tt)) - 
+           (4 + Sin(tt))*(128 + Power(Sin(tt),2) - 4*Sin(tt)*(-9 + Sin(xx*yy))))) + 
+     (Power(xx,3)*Sin(tt)*Power(4 + Sin(tt),2)*
+        (32*(-65 + Cos(2*tt) - 28*Sin(tt) + 2*Power(zz,2)*Sin(tt)*(6 + Sin(tt))) + 
+          yy*(2656 - 96*Cos(2*tt) + Power(Sin(tt),3) - 32*Cos(tt)*(5 + 2*Sin(tt)) + 
+             Sin(tt)*(1155 - 128*Sin(xx*yy)) - 16*Sin(xx*yy) - 
+             16*Power(Sin(tt),2)*Sin(xx*yy) + 
+             Power(Cos(tt),2)*(-3*Sin(tt) + 16*Sin(xx*yy)))))/4. + 
+     (xx*Power(4 + Sin(tt),3)*(8*(-1 + Cos(2*tt) - 8*Sin(tt))*
+           (-12 - Sin(tt) + 2*Power(zz,2)*(8 + Sin(tt))) + 
+          yy*(32 + 132*Cos(tt) - 32*Cos(2*tt) - 4*Cos(3*tt) + 67*Cos(tt - xx*yy) - 
+             Cos(3*tt - xx*yy) - 67*Cos(tt + xx*yy) + Cos(3*tt + xx*yy) + 
+             506*Sin(tt) + 48*Sin(2*tt) + 2*Sin(3*tt) + 32*Sin(xx*yy) + 
+             16*Sin(2*tt - xx*yy) - 16*Sin(2*tt + xx*yy))))/8.)/
+      ((4 + Sin(tt))*Power(-4*Power(xx,2)*Sin(tt) + Power(4 + Sin(tt),2),2));
 
-
-    // calculate solution and derivatives
-    const double ux = sin( time() ) * x[0] * x[1];
-    const double mdux = ( cos( time() ) + 0.5 * sin( time() ) * apt / at ) * x[0] * x[1];
-    const double mlapux = sin( time() ) * (  2.0 * N1 * N2 + H * ( x[1] * N1 + x[0] * N2 ) );
-
-    // construct solution
-    phi = mdux + divGammaV * ux + mlapux;
+#if 0
+    /* case b = 0 */
+    phi = (xx*yy*(4*Power(xx,4)*Power(Sin(tt),2)*
+        (8*Cos(tt)*(3 + Sin(tt)) - 
+          (4 + Sin(tt))*(128 + Power(Sin(tt),2) - 4*Sin(tt)*(-9 + Sin(xx*yy)))) + 
+       (Power(xx,2)*Sin(tt)*Power(4 + Sin(tt),2)*
+          (2656 - 96*Cos(2*tt) + Power(Sin(tt),3) - 32*Cos(tt)*(5 + 2*Sin(tt)) + 
+            Sin(tt)*(1155 - 128*Sin(xx*yy)) - 16*Sin(xx*yy) - 
+            16*Power(Sin(tt),2)*Sin(xx*yy) + 
+            Power(Cos(tt),2)*(-3*Sin(tt) + 16*Sin(xx*yy))))/4. + 
+       Power(4 + Sin(tt),3)*(2*Cos(tt)*(8 + 6*Sin(tt) + Power(Sin(tt),2)) + 
+          Sin(tt)*(Power(Sin(tt),2)*(-1 + Sin(xx*yy)) + 8*Sin(tt)*(1 + Sin(xx*yy)) + 
+             16*(4 + Sin(xx*yy))))))/
+      ((4 + Sin(tt))*Power(-4*Power(xx,2)*Sin(tt) + Power(4 + Sin(tt),2),2));
+#endif
   }
 
   virtual void boundaryRhs( const DomainType& x,
@@ -243,19 +267,33 @@ public:
     D = 0;
     for( int i=0; i<D.rows; ++i )
       D[ i ][ i ] = 1;
+    D *= 1 + x[0]*x[0];
   }
 
   //! advection coefficient (default = 0)
   virtual void b(const DomainType& x, AdvectionVectorType& b ) const
   {
-    // set to zero by default
-    b = 0;
+    AdvectionVectorType bt;
+    bt[0] = 1;
+    bt[1] = 2;
+    bt[3] = 0;
+
+    const double at = 1.0 + 0.25 * sin( time() );
+    DomainType nu;
+    nu[ 0 ] = 2.0 * x[ 0 ] / at;
+    nu[ 1 ] = 2.0 * x[ 1 ];
+    nu[ 2 ] = 2.0 * x[ 2 ];
+    nu /= nu.two_norm();
+
+    b = bt;
+    nu *= ( bt * nu );
+    b -= nu;
   }
 
   //! mass coefficient (default = 0)
   virtual void m(const DomainType& x, RangeType &m) const
   {
-    m = RangeType(0);
+    m = sin( x[0]*x[1] );
   }
 
   //! capacity coefficient (default = 1)
