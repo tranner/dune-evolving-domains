@@ -56,9 +56,16 @@
 
 #warning DEFORMATION
 // include geometrty grid part
-#include <dune/fem/gridpart/geogridpart.hh>
+#include <dune/evolving-domains/gridpart/geogridpart.hh>
 // include description of surface deformation
 #include "deformation.hh"
+
+// include discrete function space
+#include <dune/fem/space/lagrange.hh>
+// include discrete function
+#include <dune/fem/function/blockvectorfunction.hh>
+// lagrange interpolation 
+#include <dune/fem/operator/lagrangeinterpolation.hh>
 
 // include header for heat model
 #include "heat.hh"
@@ -81,10 +88,13 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   HostGridPartType hostGridPart( grid );
   typedef DeformationCoordFunction< HGridType::dimensionworld > DeformationType;
   DeformationType deformation;
-  typedef Dune::Fem::GridFunctionAdapter< DeformationType, HostGridPartType > DiscreteDeformationType;
-  typedef Dune::Fem::GeoGridPart< DiscreteDeformationType > GridPartType;
-  DiscreteDeformationType discreteDeformation( "deformation", deformation, hostGridPart, 1 );
-  GridPartType gridPart( discreteDeformation );
+
+  typedef DiscreteDeformationCoordHolder< DeformationType, HostGridPartType, POLORDER > DiscreteDeformationCoordHolderType;
+  typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
+  DiscreteDeformationCoordHolderType discreteDeformation( deformation, hostGridPart );
+
+  typedef Dune::Fem::GeoGridPart< CoordinateFunctionType > GridPartType;
+  GridPartType gridPart( discreteDeformation.coordFunction() );
   //! [Setup the grid part for a deforming domain]
 
   // type of the mathematical model used
@@ -152,7 +162,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
     // assemble explicit pare
     scheme.prepare();
     //! [Set the new time to move to new surface]
-    deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    discreteDeformation.setTime( timeProvider.time() + timeProvider.deltaT() );
     // solve once - but now we need to reassmble
     scheme.solve(true);
     //! [Set the new time to move to new surface]

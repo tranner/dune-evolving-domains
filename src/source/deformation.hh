@@ -77,53 +77,59 @@ private:
   double time_;
 };
 
-//! deformation depending on a discrete function
-template <class DiscreteFunctionType>
-class DeformationDiscreteFunction
-: public Dune::DiscreteCoordFunction< double, 3, DeformationDiscreteFunction< DiscreteFunctionType > >
+// include discrete function space
+#include <dune/fem/space/lagrange.hh>
+// include discrete function
+#include <dune/fem/function/blockvectorfunction.hh>
+// lagrange interpolation 
+#include <dune/fem/operator/lagrangeinterpolation.hh>
+
+template< class Deformation, class GridPart, const unsigned int polorder = 1 >
+class DiscreteDeformationCoordHolder
 {
-  typedef Dune::DiscreteCoordFunction< double, 3, DeformationDiscreteFunction< DiscreteFunctionType > > BaseType;
+  typedef Deformation DeformationType;
+  typedef GridPart GridPartType;
 
-  typedef typename DiscreteFunctionType :: GridType GridType ;
-  typedef typename DiscreteFunctionType :: LocalFunctionType LocalFunctionType ;
-  typedef typename DiscreteFunctionType :: RangeType  RangeType ;
 public:
-  DeformationDiscreteFunction ( const DiscreteFunctionType& vertices )
-  : vertices_( vertices )
-  {}
+  typedef typename DeformationType :: FunctionSpaceType FunctionSpaceType;
 
-  template< class HostEntity , class RangeVector >
-  void evaluate ( const HostEntity &hostEntity, unsigned int corner,
-		  RangeVector &y ) const
+  //! choose type of discrete function space
+  typedef Dune::Fem::LagrangeDiscreteFunctionSpace< FunctionSpaceType, GridPartType, polorder > DiscreteFunctionSpaceType;
+  // choose type of discrete function
+  typedef Dune::Fem::ISTLBlockVectorDiscreteFunction< DiscreteFunctionSpaceType > DiscreteFunctionType;
+
+  DiscreteDeformationCoordHolder( Deformation& deformation, GridPart& gridPart )
+    : deformation_( deformation ), gridPart_( gridPart ),
+      discreteSpace_( gridPart ),
+      coordFunction_( "deformation", discreteSpace_ )
   {
-    DUNE_THROW(Dune::NotImplemented,"evaluate not implemented for codim > 0");
+    interpolate();
   }
 
-  template <class RangeVector>
-  void evaluate ( const typename GridType :: template Codim<0>::Entity &entity,
-		  unsigned int corner,
-		  RangeVector &y ) const
+  void setTime( const double time )
   {
-    y = entity.geometry()[corner];
-
-    return;
-    typedef typename GridType::ctype  ctype;
-    enum { dim = GridType::dimension };
-
-    const Dune::ReferenceElement< ctype, dim > &refElement
-      = Dune::ReferenceElements< ctype, dim >::general( entity.type() );
-
-    LocalFunctionType localVertices = vertices_.localFunction( entity );
-
-    localVertices.evaluate( refElement.position( corner, dim ), y );
+    deformation_.setTime( time );
+    interpolate();
   }
 
-  void setTime ( const double time )
+  const DiscreteFunctionType& coordFunction() const
   {
+    return coordFunction_;
   }
 
 protected:
-  const DiscreteFunctionType& vertices_;
+  void interpolate()
+  {
+    Dune::Fem::LagrangeInterpolation
+      < DeformationType, DiscreteFunctionType > interpolation;
+    interpolation( deformation_, coordFunction_ );
+  }
+
+private:
+  Deformation& deformation_;
+  GridPart& gridPart_;
+  DiscreteFunctionSpaceType discreteSpace_;
+  DiscreteFunctionType coordFunction_;
 };
 
 #endif // #ifndef DEFORMATION_HH
