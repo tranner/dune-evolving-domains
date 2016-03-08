@@ -205,7 +205,7 @@ void EllipticOperator< DiscreteFunction, Model >
     LocalFunctionType wLocal = w.localFunction( entity );
 
     // obtain quadrature order
-    const int quadOrder = uLocal.order() + wLocal.order();
+    const int quadOrder = 2*( uLocal.order() + wLocal.order() );
 
     { // element integral
       QuadratureType quadrature( entity, quadOrder );
@@ -319,7 +319,7 @@ void DifferentiableEllipticOperator< JacobianOperator, Model >
     const BasisFunctionSetType &baseSet = jLocal.domainBasisFunctionSet();
     const unsigned int numBasisFunctions = baseSet.size();
 
-    QuadratureType quadrature( entity, 2*dfSpace.order() );
+    QuadratureType quadrature( entity, 4*dfSpace.order() );
     const size_t numQuadraturePoints = quadrature.nop();
     for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
     {
