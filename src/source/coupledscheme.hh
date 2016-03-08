@@ -73,7 +73,7 @@ struct FemSchemeHolder
   // choose type of discrete function, Matrix implementation and solver implementation
   typedef Dune::Fem::ISTLBlockVectorDiscreteFunction< DiscreteFunctionSpaceType > DiscreteFunctionType;
   typedef Dune::Fem::ISTLLinearOperator< DiscreteFunctionType, DiscreteFunctionType > LinearOperatorType;
-  typedef Dune::Fem::ISTLCGOp< DiscreteFunctionType, LinearOperatorType > LinearInverseOperatorType;
+  typedef Dune::Fem::ISTLGMResOp< DiscreteFunctionType, LinearOperatorType > LinearInverseOperatorType;
 
   //! define Laplace operator
   typedef DifferentiableEllipticOperator< LinearOperatorType, ModelType > EllipticOperatorType;
