@@ -50,6 +50,8 @@ struct DeformationCoordFunction
 {
   typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
 
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
   typedef typename FunctionSpaceType::DomainType DomainType;
   typedef typename FunctionSpaceType::RangeType RangeType;
 
@@ -59,11 +61,14 @@ struct DeformationCoordFunction
 
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
+    DomainType p = x;
+    p /= p.two_norm();
+
     const double at = 1.0 + 0.25 * sin( time_ );
 
-    y[ 0 ] = x[ 0 ] * sqrt(at);
-    y[ 1 ] = x[ 1 ];
-    y[ 2 ] = x[ 2 ];
+    y[ 0 ] = p[ 0 ] * sqrt(at);
+    y[ 1 ] = p[ 1 ];
+    y[ 2 ] = p[ 2 ];
   }
 
   void setTime ( const double time ) { time_ = time; }
