@@ -6,7 +6,7 @@ set(WANT_ISTL  1)
 
 set(CLEANFILES  *.log)
 
-set(check_PROGRAMS  test-surface )
+set(check_PROGRAMS  test-surface test-coupled )
 
 SET( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -DPOLORDER=${POLORDER} -DWANT_ISTL=${WANT_ISTL} -DGRIDDIM=${GRIDDIM} -DWORLDDIM=${WORLDDIM}")
 
@@ -14,8 +14,8 @@ add_executable(test-surface test-surface.cc)
 add_dune_alberta_flags(test-surface GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
 target_link_dune_default_libraries( test-surface )
 
-# add_executable(main-coupled main-coupled.cc)
-# add_dune_alberta_flags(main-coupled GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
-# target_link_dune_default_libraries( main-coupled )
+add_executable(test-coupled test-coupled.cc)
+add_dune_alberta_flags(test-coupled GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
+target_link_dune_default_libraries( test-coupled )
 
 dune_symlink_to_source_files(FILES parameter sphere2.dgf ball.dgf)

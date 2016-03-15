@@ -62,7 +62,9 @@ struct DeformationCoordFunction
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
     y = x;
+#if 0
     y /= y.two_norm();
+#endif
   }
 
   void setTime ( const double time ) { time_ = time; }
