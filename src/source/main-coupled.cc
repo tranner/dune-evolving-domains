@@ -20,7 +20,7 @@
 
 // include eoc output
 #include <dune/fem/misc/femeoc.hh>
-#include "gridwidth.hh"
+#include <dune/evolving-domains/gridwidth.hh>
 
 // include header of adaptive scheme
 #include "coupledgrid.hh"

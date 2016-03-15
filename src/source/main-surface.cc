@@ -52,7 +52,7 @@
 
 // include eoc output
 #include <dune/fem/misc/femeoc.hh>
-#include "gridwidth.hh"
+#include <dune/evolving-domains/gridwidth.hh>
 
 #warning DEFORMATION
 // include geometrty grid part
