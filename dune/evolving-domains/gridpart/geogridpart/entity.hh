@@ -164,8 +164,7 @@ namespace Dune
 
       Geometry geometry () const
       {
-	const typename CoordFunctionType :: LocalFunctionType lf = coordFunction().localFunction( hostEntity() );
-	GeometryImplType geo( hostEntity().geometry(), lf );
+	GeometryImplType geo( coordFunction(), hostEntity().seed(), hostEntity().geometry() );
 	return Geometry( geo );
       }
 

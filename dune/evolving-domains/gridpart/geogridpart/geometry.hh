@@ -58,10 +58,10 @@ namespace Dune
       typedef GeoGeometry< mydim, cdim, GridFamily > ThisType;
       typedef typename std::remove_const< GridFamily >::type::Traits Traits;
       typedef typename Traits::CoordFunctionType CoordFunctionType;
+      using LocalFunctionType = typename CoordFunctionType :: LocalFunctionType;
 
     public:
       typedef typename std::remove_const< GridFamily >::type::ctype ctype;
-      using LocalFunctionType = typename CoordFunctionType :: LocalFunctionType;
 
       static const int mydimension = mydim;
       static const int coorddimension = cdim;
@@ -72,6 +72,10 @@ namespace Dune
       typedef typename Traits::HostGridPartType HostGridPartType;
       typedef typename HostGridPartType::template Codim< codimension >::EntityType HostEntityType;
       typedef typename HostEntityType :: Geometry HostGeometry;
+
+      typedef typename HostGridPartType::template Codim< 0 >::EntityType HostEntity0Type;
+      typedef typename HostEntity0Type :: EntitySeed HostEntity0SeedType;
+
 
     public:
       //! type of local coordinates
@@ -92,18 +96,16 @@ namespace Dune
 
       GeoGeometry () = delete;
 
-      GeoGeometry ( const HostGeometry &hostGeo, const LocalFunctionType &mapping,
-		    const unsigned int index  = 0 )
-	: hostGeo_( hostGeo ), mapping_( mapping ), index_( index ), set_( true )
-      {
-        assert( int( hostGeo.type().dim() ) == mydimension );
-      }
+      GeoGeometry( const CoordFunctionType& coordFunction, const HostEntity0SeedType& seed,
+		   const HostGeometry& hostGeometry, const unsigned int index = 0 )
+	: coordFunction_( &coordFunction ), seed_( seed ),
+	  hostGeometry_( hostGeometry ), index_( index )
+      {}
 
-      GeoGeometry ( const ThisType &other )
-	: hostGeo_( other.hostGeo_ ), mapping_( other.mapping_ ), index_( other.index_ ),
-	  set_( other.set_ )
-      {
-      }
+      GeoGeometry( const ThisType& other )
+	: coordFunction_( other.coordFunction_ ), seed_( other.seed_ ),
+	  hostGeometry_( other.hostGeometry_ ), index_( other.index_ )
+      {}
 
       const ThisType &operator= ( const ThisType &other )
       {
@@ -114,22 +116,33 @@ namespace Dune
 
       void evaluate( const LocalCoordinate& x, GlobalCoordinate& y ) const
       {
-	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( type() );
+	Dune::GeometryType geoType;
+	geoType.makeSimplex( dimension );
+
+	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( geoType );
 	const auto& embedMap = refEl.template geometry< codimension >( index_ );
 	DimensionCoordinate xElement = embedMap.global( x );
 
-	mapping_.evaluate( xElement, y );
+	HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
+	const LocalFunctionType lf = coordFunction().localFunction( e );
+	lf.evaluate( xElement, y );
       }
       void jacobian( const LocalCoordinate& x, Jacobian& mat ) const
       {
-	const auto dG = hostGeo_.jacobianTransposed( x );
+	const auto dG = hostGeometry_.jacobianTransposed( x );
 
-	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( type() );
+	Dune::GeometryType geoType;
+	geoType.makeSimplex( dimension );
+
+	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( geoType );
 	const auto& embedMap = refEl.template geometry< codimension >( index_ );
 	DimensionCoordinate xElement = embedMap.global( x );
 
 	typename LocalFunctionType :: JacobianRangeType dF;
-	mapping_.jacobian( xElement, dF );
+	HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
+	const LocalFunctionType lf = coordFunction().localFunction( e );
+
+	lf.jacobian( xElement, dF );
 
 	for( unsigned int i = 0; i < coorddimension; ++i )
 	  for( unsigned int j = 0; j < mydimension; ++j )
@@ -146,11 +159,13 @@ namespace Dune
 
       bool affine () const
       {
-	return mapping_.order();
+	const HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
+	const LocalFunctionType lf = coordFunction().localFunction( e );
+	return lf.order();
       }
       GeometryType type () const
       {
-	return hostGeo_.type();
+	return hostGeometry_.type();
       }
 
       int corners () const
@@ -174,7 +189,9 @@ namespace Dune
       GlobalCoordinate global ( const LocalCoordinate &local ) const
       {
 	GlobalCoordinate y;
-	mapping_.evaluate( local, y );
+	const HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
+	const LocalFunctionType lf = coordFunction().localFunction( e );
+	lf.evaluate( local, y );
 	return y;
       }
       LocalCoordinate local ( const GlobalCoordinate &global ) const
@@ -251,14 +268,21 @@ namespace Dune
       }
 
     protected:
+      const CoordFunctionType &coordFunction () const
+      {
+        assert( coordFunction_ );
+        return *coordFunction_;
+      }
+
       const ReferenceElementType& referenceElement() const
       {
 	return Dune::ReferenceElements< ctype, mydimension >::general( type() );
       }
 
     private:
-      const HostGeometry hostGeo_;
-      const LocalFunctionType mapping_;
+      const CoordFunctionType *coordFunction_ = nullptr;
+      const HostEntity0SeedType seed_;
+      const HostGeometry hostGeometry_;
       const unsigned int index_;
       bool set_;
     };

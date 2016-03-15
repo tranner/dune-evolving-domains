@@ -98,16 +98,10 @@ namespace Dune
 
       Geometry geometry () const
       {
-#if 0
-        const LocalGeometry &localGeo = geometryInInside();
-        CoordVectorType coords( insideGeo_, localGeo );
-        return Geometry( GeometryImplType( type(), coords ) );
-#else
 #warning to do
-	const typename CoordFunctionType :: LocalFunctionType lf = coordFunction().localFunction( hostIntersection().inside() );
-	GeometryImplType geo( hostIntersection().geometry(), lf, hostIntersection().indexInInside() );
+	GeometryImplType geo( coordFunction(), hostIntersection().inside().seed(),
+			      hostIntersection().geometry(), hostIntersection().indexInInside() );
 	return Geometry( geo );
-#endif
       }
 
       GeometryType type () const
