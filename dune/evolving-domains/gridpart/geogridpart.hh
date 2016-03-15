@@ -42,8 +42,9 @@ namespace Dune
 
     // Traits for dune-grid facades ("Gen-Gurke!")
     template< class CoordFunction >
-    struct GeoGridPartFamily
+    class GeoGridPartFamily
     {
+    public:
       typedef typename CoordFunction::RangeFieldType ctype;
 
       static const int dimension = CoordFunction::GridPartType::dimension;

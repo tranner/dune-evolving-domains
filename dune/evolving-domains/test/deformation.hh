@@ -107,7 +107,7 @@ public:
   int elements() const
   {
     int n = 0;
-    for( auto e : discreteSpace_ )
+    for( auto it = discreteSpace_.begin(); it != discreteSpace_.end(); ++it )
       ++n;
     return n;
   }
@@ -267,7 +267,7 @@ public:
   int elements() const
   {
     int n = 0;
-    for( auto e : discreteSpace_ )
+    for( auto it = discreteSpace_.begin(); it != discreteSpace_.end(); ++it )
       ++n;
     return n;
   }

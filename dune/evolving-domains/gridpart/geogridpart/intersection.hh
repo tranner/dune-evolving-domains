@@ -98,7 +98,6 @@ namespace Dune
 
       Geometry geometry () const
       {
-#warning to do
 	GeometryImplType geo( coordFunction(), hostIntersection().inside().seed(),
 			      hostIntersection().geometry(), hostIntersection().indexInInside() );
 	return Geometry( geo );

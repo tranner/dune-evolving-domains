@@ -76,8 +76,9 @@ namespace Dune
 
     template< class GridFamily, class WrappedHandle >
     template< class HostEntity >
-    struct GeoDataHandle< GridFamily, WrappedHandle >::EntityProxy
+    class GeoDataHandle< GridFamily, WrappedHandle >::EntityProxy
     {
+    public:
       static const int dimension = HostEntity::dimension;
       static const int codimension = HostEntity::codimension;
 

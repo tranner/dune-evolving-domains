@@ -54,7 +54,6 @@
 #include <dune/fem/misc/femeoc.hh>
 #include <dune/evolving-domains/gridwidth.hh>
 
-#warning DEFORMATION
 // include geometrty grid part
 #include <dune/evolving-domains/gridpart/geogridpart.hh>
 // include description of surface deformation
