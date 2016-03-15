@@ -13,7 +13,11 @@
 #include <dune/fem/space/common/adaptmanager.hh>
 
 // include geometrty grid part
+#if USE_OLD_GRIDPART
 #include <dune/fem/gridpart/geogridpart.hh>
+#else
+#include <dune/evolving-domains/gridpart/geogridpart.hh>
+#endif
 // include description of surface deformation
 #include "deformation.hh"
 
@@ -28,6 +32,9 @@
 #include <dune/fem/quadrature/cachingquadrature.hh>
 
 #include "coupledgrid.hh"
+
+// timer
+#include <ctime>
 
 template< class GridPartType >
 void computeArea( const GridPartType& gridPart, double& bulkArea, double& surfaceArea )
@@ -101,7 +108,7 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceHostGridPartType;
   SurfaceHostGridPartType surfaceHostGridPart( coupledGrid.surfaceGrid() );
 
-  // construct deformaiton
+  // construct deformation
   typedef DeformationCoordFunction< HBulkGridType :: dimensionworld > DeformationType;
   DeformationType deformation;
 
@@ -113,19 +120,26 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   typedef Dune :: Fem :: GeoGridPart< CoordinateFunctionType > BulkGridPartType;
   BulkGridPartType bulkGridPart( discreteDeformation.coordFunction() );
 
+  // start timer
+  const std::clock_t start = std::clock();
+
   // compute area
   double bulkArea, surfaceArea;
   computeArea( bulkGridPart, bulkArea, surfaceArea );
 
+  const double timeEllapsed = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+
   // get errors
   std::vector< double > store = { std::abs( bulkArea - 4.0 * M_PI / 3.0 ),
 				  std::abs( surfaceArea - 4.0 * M_PI ) };
+  std::cout << "bulk area:\t" << bulkArea << std::endl;
+  std::cout << "surface area:\t" << surfaceArea << std::endl;
   Dune :: Fem :: FemEoc :: setErrors( eocId, store );
 
   // write to file / output
   const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
   const int dofs = 0;
-  Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
+  Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, 0.0, std::cout );
 }
 
 // main

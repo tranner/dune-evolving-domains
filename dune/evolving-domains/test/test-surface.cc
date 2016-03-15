@@ -55,7 +55,11 @@
 #include <dune/evolving-domains/gridwidth.hh>
 
 // include geometrty grid part
+#if USE_OLD_GRIDPART
+#include <dune/fem/gridpart/geogridpart.hh>
+#else
 #include <dune/evolving-domains/gridpart/geogridpart.hh>
+#endif
 // include description of surface deformation
 #include "deformation.hh"
 
@@ -119,10 +123,12 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   // compute area
   const double area = computeArea< GridPartType, polorder >( gridPart );
 
+  // stop timer
   const double timeEllapsed = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
 
   // compute error
   const double error = std::abs( area - 4.0 * M_PI );
+  std::cout << "area:\t" << area << std::endl;
 
   // get errors
   std::vector< double > store = { error };
