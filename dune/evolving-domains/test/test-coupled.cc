@@ -109,10 +109,10 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceHostGridPartType surfaceHostGridPart( coupledGrid.surfaceGrid() );
 
   // construct deformation
-  typedef DeformationCoordFunction< HBulkGridType :: dimensionworld > DeformationType;
+  typedef BoundaryProjection< HBulkGridType :: dimensionworld > DeformationType;
   DeformationType deformation;
 
-  typedef DiscreteDeformationCoordHolder< DeformationType, BulkHostGridPartType, 1 > DiscreteDeformationCoordHolderType;
+  typedef DiscreteDeformationCoordHolder< DeformationType, BulkHostGridPartType, 0, POLORDER > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
   DiscreteDeformationCoordHolderType discreteDeformation( deformation, bulkHostGridPart );
 
@@ -138,8 +138,9 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 
   // write to file / output
   const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
-  const int dofs = 0;
-  Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, 0.0, std::cout );
+  const int dofs = discreteDeformation.dofs();
+  const int elements = discreteDeformation.elements();
+  Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, elements, std::cout );
 }
 
 // main

@@ -106,10 +106,10 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [Setup the grid part for a deforming domain]
   typedef Dune::Fem::AdaptiveLeafGridPart< HGridType, Dune::InteriorBorder_Partition > HostGridPartType;
   HostGridPartType hostGridPart( grid );
-  typedef DeformationCoordFunction< HGridType::dimensionworld > DeformationType;
+  typedef BoundaryProjection< HGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
-  typedef DiscreteDeformationCoordHolder< DeformationType, HostGridPartType, polorder > DiscreteDeformationCoordHolderType;
+  typedef DiscreteDeformationCoordHolder< DeformationType, HostGridPartType, 1, polorder > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
   DiscreteDeformationCoordHolderType discreteDeformation( deformation, hostGridPart );
 
@@ -137,7 +137,8 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   // write to file / output
   const double h = EvolvingDomain :: GridWidth :: gridWidth( gridPart );
   const int dofs = discreteDeformation.dofs();
-  Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, 0.0, std::cout );
+  const int elements = discreteDeformation.elements();
+  Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, elements, std::cout );
 }
 
 // main
