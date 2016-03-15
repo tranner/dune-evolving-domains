@@ -5,6 +5,6 @@ fem.solver.verbose: 0
 fem.io.macroGridFile_2d: sphere2.dgf
 fem.io.macroGridFile_3d: ball.dgf
 
-areatest.level:0
 areatest.repeats:4
+areatest.level:1
 
