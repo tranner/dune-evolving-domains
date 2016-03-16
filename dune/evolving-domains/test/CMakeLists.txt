@@ -25,3 +25,7 @@ target_link_dune_default_libraries( test-coupled )
 target_compile_definitions( test-coupled PRIVATE ${GRIDTYPE};GRIDDIM=${BULK_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
 
 dune_symlink_to_source_files(FILES parameter sphere2.dgf ball.dgf)
+
+add_executable(mytest test.cc)
+target_link_dune_default_libraries( mytest )
+add_dune_alberta_flags(mytest GRIDDIM 3 WORLDDIM 3)
