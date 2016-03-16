@@ -33,6 +33,72 @@
 // timer
 #include <ctime>
 
+#include <dune/fem/space/common/functionspace.hh>
+template< int dimWorld >
+struct BoundaryProjection
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+    y /= y.two_norm();
+  }
+
+  bool onBoundary( const DomainType& x )
+  {
+    return std::abs( x.two_norm() - 1.0 ) < 1.0e-12;
+  }
+};
+
+template< int dimWorld >
+struct Deformation
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+  }
+};
+
+template< class GridPart >
+double computeArea( const GridPart& gridPart )
+{
+  // compute area using quadrature rules
+  double ret = 0;
+  typedef Dune::Fem::CachingQuadrature< GridPart, 0 > QuadratureType;
+  typedef typename GridPart::GridViewType GridViewType;
+  for( const auto& e : elements( static_cast<GridViewType>( gridPart ) ) )
+    {
+      const auto &geometry = e.geometry();
+
+      QuadratureType quadrature( e, 2*POLORDER+1 );
+      const size_t numQuadraturePoints = quadrature.nop();
+
+      for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
+	{
+	  //! [Compute local contribution of operator]
+	  const typename QuadratureType::CoordinateType &x = quadrature.point( pt );
+	  const double weight = quadrature.weight( pt ) * geometry.integrationElement( x );
+
+	  ret += weight;
+	}
+    }
+
+  return ret;
+}
+
 template< class GridPartType >
 void computeArea( const GridPartType& gridPart, double& bulkArea, double& surfaceArea )
 {
@@ -106,37 +172,53 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceHostGridPartType surfaceHostGridPart( coupledGrid.surfaceGrid() );
 
   // construct deformation
-  typedef BoundaryProjection< HBulkGridType :: dimensionworld > DeformationType;
+  typedef BoundaryProjection< HBulkGridType::dimensionworld > BoundaryProjectionType;
+  BoundaryProjectionType boundaryProjection;
+  typedef Deformation< HBulkGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
-  typedef DiscreteDeformationCoordHolder< DeformationType, BulkHostGridPartType, 0, POLORDER > DiscreteDeformationCoordHolderType;
-  typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
-  DiscreteDeformationCoordHolderType discreteDeformation( deformation, bulkHostGridPart );
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  BulkHostGridPartType, 0, POLORDER > BulkDiscreteDeformationCoordHolderType;
+  typedef typename BulkDiscreteDeformationCoordHolderType :: DiscreteFunctionType BulkCoordinateFunctionType;
+  BulkDiscreteDeformationCoordHolderType bulkDiscreteDeformation( deformation, boundaryProjection, bulkHostGridPart );
 
-  // bulk geometry grid part type
-  typedef Dune :: Fem :: GeoGridPart< CoordinateFunctionType > BulkGridPartType;
-  BulkGridPartType bulkGridPart( discreteDeformation.coordFunction() );
+  // surface geometry grid part type
+  typedef Dune :: Fem :: GeoGridPart< BulkCoordinateFunctionType > BulkGridPartType;
+  BulkGridPartType bulkGridPart( bulkDiscreteDeformation.coordFunction() );
+
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  SurfaceHostGridPartType, 1, POLORDER > SurfaceDiscreteDeformationCoordHolderType;
+  typedef typename SurfaceDiscreteDeformationCoordHolderType :: DiscreteFunctionType SurfaceCoordinateFunctionType;
+  SurfaceDiscreteDeformationCoordHolderType surfaceDiscreteDeformation( deformation, boundaryProjection, surfaceHostGridPart );
+
+  // surface geometry grid part type
+  typedef Dune :: Fem :: GeoGridPart< SurfaceCoordinateFunctionType > SurfaceGridPartType;
+  SurfaceGridPartType surfaceGridPart( surfaceDiscreteDeformation.coordFunction() );
 
   // start timer
   const std::clock_t start = std::clock();
 
   // compute area
-  double bulkArea, surfaceArea;
-  computeArea( bulkGridPart, bulkArea, surfaceArea );
+  double bulkArea, boundaryArea;
+  computeArea( bulkGridPart, bulkArea, boundaryArea );
+
+  const double surfaceArea = computeArea( surfaceGridPart );
 
   const double timeEllapsed = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
 
   // get errors
   std::vector< double > store = { std::abs( bulkArea - 4.0 * M_PI / 3.0 ),
+				  std::abs( boundaryArea - 4.0 * M_PI ),
 				  std::abs( surfaceArea - 4.0 * M_PI ) };
-  std::cout << "bulk area:\t" << bulkArea << std::endl;
-  std::cout << "surface area:\t" << surfaceArea << std::endl;
+  std::cout << "bulk area:\t" << std::setprecision (15) << bulkArea << std::endl;
+  std::cout << "boundary area:\t" << std::setprecision (15) << boundaryArea << std::endl;
+  std::cout << "surface area:\t" << std::setprecision (15) << surfaceArea << std::endl;
   Dune :: Fem :: FemEoc :: setErrors( eocId, store );
 
   // write to file / output
   const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
-  const int dofs = discreteDeformation.dofs();
-  const int elements = discreteDeformation.elements();
+  const int dofs = bulkDiscreteDeformation.dofs();
+  const int elements = bulkDiscreteDeformation.elements();
   Dune::Fem::FemEoc::write( h, dofs, timeEllapsed, elements, std::cout );
 }
 
@@ -164,7 +246,7 @@ try
   Dune::Fem::FemEoc::initialize( eocOutPath, "eoc", "surface only" );
 
   // add entries to eoc calculation
-  std::vector<std::string> femEocHeaders { "bulk area error", "boundary area error" };
+  std::vector<std::string> femEocHeaders { "bulk area error", "boundary area error", "surface area error" };
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid

@@ -65,6 +65,46 @@
 // timer
 #include <ctime>
 
+
+#include <dune/fem/space/common/functionspace.hh>
+template< int dimWorld >
+struct BoundaryProjection
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+    y /= y.two_norm();
+  }
+
+  bool onBoundary( const DomainType& x )
+  {
+    return ( x.two_norm() - 1.0 ) < 1.0e-12;
+  }
+};
+
+template< int dimWorld >
+struct Deformation
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+  }
+};
+
 template< class GridPart, int polorder = 1 >
 double computeArea( const GridPart& gridPart )
 {
@@ -76,7 +116,7 @@ double computeArea( const GridPart& gridPart )
     {
       const auto &geometry = e.geometry();
 
-      QuadratureType quadrature( e, polorder+1 );
+      QuadratureType quadrature( e, 2*polorder+1 );
       const size_t numQuadraturePoints = quadrature.nop();
 
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
@@ -102,12 +142,17 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [Setup the grid part for a deforming domain]
   typedef Dune::Fem::AdaptiveLeafGridPart< HGridType, Dune::InteriorBorder_Partition > HostGridPartType;
   HostGridPartType hostGridPart( grid );
+
+  // construct deformation
+  typedef BoundaryProjection< HGridType::dimensionworld > BoundaryProjectionType;
+  BoundaryProjectionType boundaryProjection;
   typedef BoundaryProjection< HGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
-  typedef DiscreteDeformationCoordHolder< DeformationType, HostGridPartType, 1, polorder > DiscreteDeformationCoordHolderType;
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  HostGridPartType, 1, polorder > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
-  DiscreteDeformationCoordHolderType discreteDeformation( deformation, hostGridPart );
+  DiscreteDeformationCoordHolderType discreteDeformation( deformation, boundaryProjection, hostGridPart );
 
   typedef Dune::Fem::GeoGridPart< CoordinateFunctionType > GridPartType;
   GridPartType gridPart( discreteDeformation.coordFunction() );
