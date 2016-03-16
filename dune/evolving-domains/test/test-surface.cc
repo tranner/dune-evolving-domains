@@ -40,10 +40,6 @@
 // iostream includes
 #include <iostream>
 
-// dune grid includes
-#include <dune/grid/albertagrid/agrid.hh>
-#include <dune/grid/albertagrid/dgfparser.hh>
-
 // refinement includes
 #include <dune/fem/space/common/adaptmanager.hh>
 
@@ -171,8 +167,7 @@ try
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
-  typedef Dune :: AlbertaGrid< 2, 3 > HGridType;
-  static_assert( HGridType :: dimension == HGridType :: dimensionworld - 1, "this code is written with the assumption grid dim = world dim -1" );
+  typedef Dune :: GridSelector :: GridType HGridType;
 
   // create grid from DGF file
   const std::string gridkey = Dune::Fem::IOInterface::defaultGridKey( HGridType::dimension );

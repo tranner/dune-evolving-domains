@@ -6,9 +6,6 @@
 // include grid part
 #include <dune/fem/gridpart/adaptiveleafgridpart.hh>
 
-#include <dune/grid/albertagrid/agrid.hh>
-#include <dune/grid/albertagrid/dgfparser.hh>
-
 // refinement includes
 #include <dune/fem/space/common/adaptmanager.hh>
 
@@ -171,10 +168,13 @@ try
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
-  //typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HBulkGridType;
-  //typedef Dune :: ALUGrid< 2, 3, Dune::simplex, Dune::conforming > HSurfaceGridType;
-  typedef Dune :: AlbertaGrid< GRIDDIM, WORLDDIM > HBulkGridType;
+  typedef Dune :: GridSelector :: GridType HBulkGridType;
+#ifdef ALBERTAGRID
   typedef Dune :: AlbertaGrid< GRIDDIM-1, WORLDDIM > HSurfaceGridType;
+#endif
+#ifdef ALUGRID_CONFORM
+  typedef Dune :: ALUGrid< GRIDDIM-1, WORLDDIM, Dune::simplex, Dune::conforming > HSurfaceGridType;
+#endif
 
   // create grid from DGF file
   const std::string bulkGridkey = Dune::Fem::IOInterface::defaultGridKey( HBulkGridType::dimension );
