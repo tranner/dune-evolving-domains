@@ -83,7 +83,7 @@ double computeArea( const GridPart& gridPart )
     {
       const auto &geometry = e.geometry();
 
-      QuadratureType quadrature( e, 2*POLORDER+1 );
+      QuadratureType quadrature( e, POLORDER+1 );
       const size_t numQuadraturePoints = quadrature.nop();
 
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
@@ -210,9 +210,10 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   std::vector< double > store = { std::abs( bulkArea - 4.0 * M_PI / 3.0 ),
 				  std::abs( boundaryArea - 4.0 * M_PI ),
 				  std::abs( surfaceArea - 4.0 * M_PI ) };
-  std::cout << "bulk area:\t" << std::setprecision (15) << bulkArea << std::endl;
-  std::cout << "boundary area:\t" << std::setprecision (15) << boundaryArea << std::endl;
-  std::cout << "surface area:\t" << std::setprecision (15) << surfaceArea << std::endl;
+  std::cout << "bulk area:\t" << bulkArea << std::endl;
+  std::cout << "boundary area:\t" << boundaryArea << std::endl;
+  std::cout << "surface area:\t" << surfaceArea
+	    << " ( difference: " << std::abs( boundaryArea - surfaceArea ) << " )" << std::endl;
   Dune :: Fem :: FemEoc :: setErrors( eocId, store );
 
   // write to file / output
