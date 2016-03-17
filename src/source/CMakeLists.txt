@@ -7,20 +7,20 @@ set(USE_OLD_GRIDPART 0)
 
 set(CLEANFILES  *.log)
 
-set(check_PROGRAMS  main-surface main-coupled)
+set(check_PROGRAMS  main-surface-${POLORDER} main-coupled-${POLORDER})
 
-add_executable(main-surface main-surface.cc)
+add_executable(main-surface-${POLORDER} main-surface.cc)
 math(EXPR SURFACE_GRIDDIM '${WORLDDIM}-1')
-add_dune_alberta_flags(main-surface GRIDDIM ${SURFACE_GRIDDIM} WORLDDIM ${WORLDDIM})
-target_link_dune_default_libraries( main-surface )
-target_compile_definitions( main-surface PRIVATE ${GRIDTYPE};GRIDDIM=${SURFACE_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
+add_dune_alberta_flags(main-surface-${POLORDER} GRIDDIM ${SURFACE_GRIDDIM} WORLDDIM ${WORLDDIM})
+target_link_dune_default_libraries( main-surface-${POLORDER} )
+target_compile_definitions( main-surface-${POLORDER} PRIVATE ${GRIDTYPE};GRIDDIM=${SURFACE_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
 
 
-add_executable(main-coupled main-coupled.cc)
+add_executable(main-coupled-${POLORDER} main-coupled.cc)
 set(BULK_GRIDDIM ${GRIDDIM})
-add_dune_alberta_flags(main-coupled GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
-target_link_dune_default_libraries( main-coupled )
-target_compile_definitions( main-coupled PRIVATE ${GRIDTYPE};GRIDDIM=${BULK_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
+add_dune_alberta_flags(main-coupled-${POLORDER} GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
+target_link_dune_default_libraries( main-coupled-${POLORDER} )
+target_compile_definitions( main-coupled-${POLORDER} PRIVATE ${GRIDTYPE};GRIDDIM=${BULK_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
 
 set(EXTRA_DIST   main.cc deformation.hh dirichletconstraints.hh elliptic.hh femscheme.hh heat.hh heatmodel.hh heatscheme.hh model.hh probleminterface.hh rhs.hh temporalprobleminterface.hh heat2.dox)
 
