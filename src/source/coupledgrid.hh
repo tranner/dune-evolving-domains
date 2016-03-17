@@ -122,6 +122,24 @@ struct CoupledGrid
     return bulkSeedVector_[ idx ];
   }
 
+  typename BulkEntityType :: Geometry :: LocalCoordinate
+  surfaceLocalToBulkLocal( const SurfaceEntityType& entity, const typename SurfaceEntityType :: Geometry :: LocalCoordinate& x ) const
+  {
+    // find global coordinate
+    const typename SurfaceEntityType :: Geometry surfaceGeometry = entity.geometry();
+    const typename SurfaceEntityType :: Geometry :: GlobalCoordinate xGlobal = surfaceGeometry.global( x );
+
+    // find bulk entity
+    const BulkEntitySeedType seed = surfaceBulkMap( entity );
+    const BulkEntityType bulkEntity = bulkGrid().entity( seed );
+
+    // find local coordinate for bulk geometry
+    const typename BulkEntityType :: Geometry bulkGeometry = bulkEntity.geometry();
+    const typename BulkEntityType :: Geometry :: LocalCoordinate xBulkLocal = bulkGeometry.local( xGlobal );
+
+    return xBulkLocal;
+  }
+
   HBulkGridType &bulkGrid() { return bulkGrid_; }
   HSurfaceGridType &surfaceGrid() { return *surfaceGridPtr_; }
 
@@ -198,6 +216,13 @@ struct CoupledGeoGridPart
     const unsigned int idx = coupledGrid_.seedIndex( gridEntity( entity ) );
     return map_[ idx ];
   }
+
+  typename BulkEntityType :: Geometry :: LocalCoordinate
+  surfaceLocalToBulkLocal( const SurfaceEntityType& entity, const typename SurfaceEntityType :: Geometry :: LocalCoordinate& x ) const
+  {
+    return coupledGrid_.surfaceLocalToBulkLocal( gridEntity( entity ), x );
+  }
+
 
   const BulkGeoGridPartType &bulkGridPart() const
   {

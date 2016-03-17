@@ -370,8 +370,8 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
 	  const double weight = quadrature.weight( pt ) *
 	    geometry.integrationElement( xLocal );
 
-	  const auto xGlobal = geometry.global( xLocal );
-	  const auto xBulkLocal = bulkGeometry.local( xGlobal );
+	  // find local coordinate wrt bulk element
+	  const auto xBulkLocal = coupledGrid().surfaceLocalToBulkLocal( entity, xLocal );
 
 	  // evaluate basis functions at quadrature points
 	  domainBasisSet.evaluateAll( xBulkLocal, domainPhi );
@@ -464,8 +464,8 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
 	  const double weight = quadrature.weight( pt ) *
 	    geometry.integrationElement( xLocal );
 
-	  const auto xGlobal = geometry.global( xLocal );
-	  const auto xBulkLocal = bulkGeometry.local( xGlobal );
+	  // find local coordinate wrt bulk element
+	  const auto xBulkLocal = coupledGrid().surfaceLocalToBulkLocal( entity, xLocal );
 
 	  // evaluate basis functions at quadrature points
 	  domainBasisSet.evaluateAll( quadrature[ pt ], domainPhi );
