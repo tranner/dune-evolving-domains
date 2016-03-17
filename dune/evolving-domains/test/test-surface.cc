@@ -146,7 +146,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   // construct deformation
   typedef BoundaryProjection< HGridType::dimensionworld > BoundaryProjectionType;
   BoundaryProjectionType boundaryProjection;
-  typedef BoundaryProjection< HGridType::dimensionworld > DeformationType;
+  typedef Deformation< HGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
   typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
