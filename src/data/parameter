@@ -22,15 +22,17 @@ fem.io.savestep: 0.0
 fem.io.savecount: 0
 fem.timeprovider.factor: 1
 
-heat.timestep: 0.1
+poisson.solvereps:1.0e-12
+
+heat.timestep: 1.0
 heat.endtime: 1
 heat.theta: 1
-heat.level: 0
+heat.level: 1
 heat.repeats: 10
-heat.reducetimestepfactor: 0.25
+heat.reducetimestepfactor: 0.125
 
 heat.problem:surface_parabolic
-coupled.problem:coupled_parabolic
+coupled.problem:coupled_heat
 
 spiral.timestep: 0.01 # explicit rhs: 0.005
 spiral.endtime: 20.
