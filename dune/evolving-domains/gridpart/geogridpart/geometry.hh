@@ -10,6 +10,9 @@
 #include <dune/fem/gridpart/common/capabilities.hh>
 #include <dune/evolving-domains/gridpart/geogridpart/cornerstorage.hh>
 
+// quadrature for area calculation
+#include <dune/fem/quadrature/cachingquadrature.hh>
+
 namespace Dune
 {
 
@@ -180,9 +183,8 @@ namespace Dune
       }
       GlobalCoordinate center () const
       {
-	std::cerr << "warning! not implemented!" << std::endl;
 	GlobalCoordinate y;
-	// mapping_.evaluate( referenceElement().position( 0, 0 ), y );
+	evaluate( referenceElement().position( 0, 0 ), y );
 	return y;
       }
 
@@ -196,7 +198,7 @@ namespace Dune
       }
       LocalCoordinate local ( const GlobalCoordinate &global ) const
       {
-	std::cerr << "not implemented" << std::endl;
+	std::cerr << "local not implemented" << std::endl;
 	assert(0);
 	return LocalCoordinate();
       }
@@ -222,9 +224,24 @@ namespace Dune
       }
       ctype volume () const
       {
-	std::cerr << "not implemented" << std::endl;
-	assert(0);
-	return -1;
+	double ret = 0.0;
+
+	typedef Dune::Fem::CachingQuadrature< typename CoordFunctionType::GridPartType, 0 > QuadratureType;
+	const HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
+	const LocalFunctionType lf = coordFunction().localFunction( e );
+
+	QuadratureType quadrature( e, lf.order()+1 );
+	const size_t numQuadraturePoints = quadrature.nop();
+
+	for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
+	  {
+	    //! [Compute local contribution of operator]
+	    const typename QuadratureType::CoordinateType &x = quadrature.point( pt );
+	    const double weight = quadrature.weight( pt ) * integrationElement( x );
+	    ret += weight;
+	  }
+
+	return ret;
       }
 
       JacobianTransposed jacobianTransposed ( const LocalCoordinate &local ) const
