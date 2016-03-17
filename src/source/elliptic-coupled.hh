@@ -118,7 +118,7 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, 1 >
     auto wSurfLocal = wSurf.localFunction( entity );
 
     // construct quadrature
-    const int quadOrder = uBulkLocal.order() + wSurfLocal.order();
+    const int quadOrder = 2*(uBulkLocal.order() + wSurfLocal.order());
     QuadratureType quadrature( entity, quadOrder );
     unsigned int numQuadraturePoints = quadrature.nop();
 
@@ -183,7 +183,7 @@ void MixingOperator< DomainFunction, RangeFunction, Model, CoupledGrid, -1 >
     auto wBulkLocal = wBulk.localFunction( bulkEntity );
 
     // construct quadrature
-    const int quadOrder = uSurfLocal.order() + wBulkLocal.order();
+    const int quadOrder = 2*(uSurfLocal.order() + wBulkLocal.order());
     QuadratureType quadrature( entity, quadOrder );
     unsigned int numQuadraturePoints = quadrature.nop();
 
@@ -360,7 +360,7 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
       const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
 
       // perform quadrature loop
-      QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
+      QuadratureType quadrature( entity, 2*(domainSpace.order() + rangeSpace.order()) );
       size_t numQuadraturePoints = quadrature.nop();
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 	{
@@ -453,7 +453,7 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
       const auto& rangeBasisSet = jLocal.rangeBasisFunctionSet();
 
       // perform quadrature loop
-      QuadratureType quadrature( entity, domainSpace.order() + rangeSpace.order() );
+      QuadratureType quadrature( entity, 2*(domainSpace.order() + rangeSpace.order() ) );
       size_t numQuadraturePoints = quadrature.nop();
       for( size_t pt = 0; pt < numQuadraturePoints; ++pt )
 	{
