@@ -11,9 +11,13 @@
 
 #define DEFORMATION 1
 // include geometrty grid part
+#if USE_OLD_GRIDPART
 #include <dune/fem/gridpart/geogridpart.hh>
+#else
+#include <dune/evolving-domains/gridpart/geogridpart.hh>
+#endif
 // include description of surface deformation
-#include "deformation.hh"
+#include <dune/evolving-domains/deformation.hh>
 
 // include output
 #include <dune/fem/io/file/dataoutput.hh>
@@ -27,6 +31,58 @@
 #include "coupledheat.hh"
 #include "heatmodel.hh"
 #include "coupledheatscheme.hh"
+
+#include <dune/fem/space/common/functionspace.hh>
+template< int dimWorld >
+struct BoundaryProjection
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+    y /= y.two_norm();
+  }
+
+  bool onBoundary( const DomainType& x )
+  {
+    return std::abs( x.two_norm() - 1.0 ) < 1.0e-12;
+  }
+};
+
+template< int dimWorld >
+struct DeformationCoordFunction
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  explicit DeformationCoordFunction ( const double time = 0.0 )
+  : time_( time )
+  {}
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    const double at = 1.0 + 0.25 * sin( time_ );
+
+    y[ 0 ] = x[ 0 ] * sqrt(at);
+    y[ 1 ] = x[ 1 ];
+    y[ 2 ] = x[ 2 ];
+  }
+
+  void setTime ( const double time ) { time_ = time; }
+
+private:
+  double time_;
+};
 
 // Assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class CoupledGridType >
@@ -47,21 +103,30 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceHostGridPartType;
   SurfaceHostGridPartType surfaceHostGridPart( coupledGrid.surfaceGrid() );
 
-  // construct deformaiton
-  typedef DeformationCoordFunction< HBulkGridType :: dimensionworld > DeformationType;
+
+  // construct deformation
+  typedef BoundaryProjection< HBulkGridType::dimensionworld > BoundaryProjectionType;
+  BoundaryProjectionType boundaryProjection;
+  typedef DeformationCoordFunction< HBulkGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
-  // bulk geometry grid part type
-  typedef Dune :: Fem :: GridFunctionAdapter< DeformationType, BulkHostGridPartType > BulkDiscreteDeformationType;
-  typedef Dune :: Fem :: GeoGridPart< BulkDiscreteDeformationType > BulkGridPartType;
-  BulkDiscreteDeformationType bulkDiscreteDeformation( "bulk deformation", deformation, bulkHostGridPart, 1 );
-  BulkGridPartType bulkGridPart( bulkDiscreteDeformation );
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  BulkHostGridPartType, 0, POLORDER > BulkDiscreteDeformationCoordHolderType;
+  typedef typename BulkDiscreteDeformationCoordHolderType :: DiscreteFunctionType BulkCoordinateFunctionType;
+  BulkDiscreteDeformationCoordHolderType bulkDiscreteDeformation( deformation, boundaryProjection, bulkHostGridPart );
 
   // surface geometry grid part type
-  typedef Dune :: Fem :: GridFunctionAdapter< DeformationType, SurfaceHostGridPartType > SurfaceDiscreteDeformationType;
-  typedef Dune :: Fem :: GeoGridPart< SurfaceDiscreteDeformationType > SurfaceGridPartType;
-  SurfaceDiscreteDeformationType surfaceDiscreteDeformation( "surface deformation", deformation, surfaceHostGridPart, 1 );
-  SurfaceGridPartType surfaceGridPart( surfaceDiscreteDeformation );
+  typedef Dune :: Fem :: GeoGridPart< BulkCoordinateFunctionType > BulkGridPartType;
+  BulkGridPartType bulkGridPart( bulkDiscreteDeformation.coordFunction() );
+
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  SurfaceHostGridPartType, 1, POLORDER > SurfaceDiscreteDeformationCoordHolderType;
+  typedef typename SurfaceDiscreteDeformationCoordHolderType :: DiscreteFunctionType SurfaceCoordinateFunctionType;
+  SurfaceDiscreteDeformationCoordHolderType surfaceDiscreteDeformation( deformation, boundaryProjection, surfaceHostGridPart );
+
+  // surface geometry grid part type
+  typedef Dune :: Fem :: GeoGridPart< SurfaceCoordinateFunctionType > SurfaceGridPartType;
+  SurfaceGridPartType surfaceGridPart( surfaceDiscreteDeformation.coordFunction() );
 
   typedef CoupledGeoGridPart< CoupledGridType, BulkGridPartType, SurfaceGridPartType > CoupledGeoGridPartType;
   CoupledGeoGridPartType coupledGeoGridPart( coupledGrid, bulkGridPart, surfaceGridPart );

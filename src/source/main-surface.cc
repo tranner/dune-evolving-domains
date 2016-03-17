@@ -55,9 +55,14 @@
 #include <dune/evolving-domains/gridwidth.hh>
 
 // include geometrty grid part
+#if USE_OLD_GRIDPART
+#include <dune/fem/gridpart/geogridpart.hh>
+#else
 #include <dune/evolving-domains/gridpart/geogridpart.hh>
+#endif
+
 // include description of surface deformation
-#include "deformation.hh"
+#include <dune/evolving-domains/deformation.hh>
 
 // include discrete function space
 #include <dune/fem/space/lagrange.hh>
@@ -72,6 +77,58 @@
 #include "heatmodel.hh"
 #include "heatscheme.hh"
 
+#include <dune/fem/space/common/functionspace.hh>
+template< int dimWorld >
+struct BoundaryProjection
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    y = x;
+    y /= y.two_norm();
+  }
+
+  bool onBoundary( const DomainType& x )
+  {
+    return true;
+  }
+};
+
+template< int dimWorld >
+struct DeformationCoordFunction
+{
+  typedef Dune::Fem::FunctionSpace< double, double, dimWorld, dimWorld > FunctionSpaceType;
+
+  typedef typename FunctionSpaceType::DomainFieldType DomainFieldType;
+  typedef typename FunctionSpaceType::RangeFieldType RangeFieldType;
+  typedef typename FunctionSpaceType::DomainType DomainType;
+  typedef typename FunctionSpaceType::RangeType RangeType;
+
+  explicit DeformationCoordFunction ( const double time = 0.0 )
+  : time_( time )
+  {}
+
+  void evaluate ( const DomainType &x, RangeType &y ) const
+  {
+    const double at = 1.0 + 0.25 * sin( time_ );
+
+    y[ 0 ] = x[ 0 ] * sqrt(at);
+    y[ 1 ] = x[ 1 ];
+    y[ 2 ] = x[ 2 ];
+  }
+
+  void setTime ( const double time ) { time_ = time; }
+
+private:
+  double time_;
+};
+
 // assemble-solve-estimate-mark-refine-IO-error-doitagain
 template <class HGridType>
 void algorithm ( HGridType &grid, int step, const int eocId )
@@ -85,12 +142,17 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [Setup the grid part for a deforming domain]
   typedef Dune::Fem::AdaptiveLeafGridPart< HGridType, Dune::InteriorBorder_Partition > HostGridPartType;
   HostGridPartType hostGridPart( grid );
+
+  // construct deformation
+  typedef BoundaryProjection< HGridType::dimensionworld > BoundaryProjectionType;
+  BoundaryProjectionType boundaryProjection;
   typedef DeformationCoordFunction< HGridType::dimensionworld > DeformationType;
   DeformationType deformation;
 
-  typedef DiscreteDeformationCoordHolder< DeformationType, HostGridPartType, POLORDER > DiscreteDeformationCoordHolderType;
+  typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
+					  HostGridPartType, 1, POLORDER > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
-  DiscreteDeformationCoordHolderType discreteDeformation( deformation, hostGridPart );
+  DiscreteDeformationCoordHolderType discreteDeformation( deformation, boundaryProjection, hostGridPart );
 
   typedef Dune::Fem::GeoGridPart< CoordinateFunctionType > GridPartType;
   GridPartType gridPart( discreteDeformation.coordFunction() );
@@ -161,7 +223,8 @@ void algorithm ( HGridType &grid, int step, const int eocId )
     // assemble explicit pare
     scheme.prepare();
     //! [Set the new time to move to new surface]
-    discreteDeformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    discreteDeformation.interpolate();
     // solve once - but now we need to reassmble
     scheme.solve(true);
     //! [Set the new time to move to new surface]
