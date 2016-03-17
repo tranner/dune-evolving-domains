@@ -349,7 +349,6 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
       // find bulk entity
       const auto seed = coupledGrid().surfaceBulkMap( entity );
       const auto bulkEntity = bulkGridPart.entity( seed );
-      const auto bulkGeometry = bulkEntity.geometry();
 
       // construct local representations of data
       const auto uLocal = u.localFunction( bulkEntity );
@@ -443,7 +442,6 @@ void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
       // find bulk entity
       const auto seed = coupledGrid().surfaceBulkMap( entity );
       const auto bulkEntity = bulkGridPart.entity( seed );
-      const auto bulkGeometry = bulkEntity.geometry();
 
       // construct local representations of data
       const auto uLocal = u.localFunction( entity );
