@@ -235,6 +235,7 @@ public:
     // write to file
     errorOutput_.write( bulkl2error, bulkh1error, surfacel2error, surfaceh1error );
 
+#if 0
     // compute mass
     static double oldBulkMass = 0;
     const double bulkMass = bulk().mass();
@@ -257,6 +258,7 @@ public:
 
     oldBulkMass = bulkMass;
     oldSurfaceMass = surfaceMass;
+#endif
   }
 
   double linftyl2BulkError() const
