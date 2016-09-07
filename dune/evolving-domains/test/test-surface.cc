@@ -136,8 +136,6 @@ double computeArea( const GridPart& gridPart )
 template <class HGridType, int polorder = 1 >
 void algorithm ( HGridType &grid, int step, const int eocId )
 {
-  typedef Dune::Fem::FunctionSpace< double, double, HGridType::dimensionworld, 1 > FunctionSpaceType;
-
   // we want to solve the problem on the leaf elements of the grid
   //! [Setup the grid part for a deforming domain]
   typedef Dune::Fem::AdaptiveLeafGridPart< HGridType, Dune::InteriorBorder_Partition > HostGridPartType;
