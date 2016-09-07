@@ -22,6 +22,7 @@ void algorithm ( HGridType &grid, const int step )
 {
   int n = 0;
   double volume = 0;
+  static double oldError = -1.0;
 
   const auto end = grid.template leafend<0>();
   for( auto it = grid.template leafbegin<0>(); it != end; ++it )
@@ -30,11 +31,19 @@ void algorithm ( HGridType &grid, const int step )
       n++;
     }
 
+  const double error = std::abs( volume - 4.0 * M_PI / 3.0 );
+
   std::cout << "level: " << step
 	    << " elements: " << n
 	    << " volume: " << volume
-	    << " error: " << std::abs( volume - 4.0 * M_PI / 3.0 )
-	    << std::endl;
+	    << " error: " << error;
+  if( oldError >= 0.0 )
+    {
+      std::cout << " eoc: " << log( error / oldError ) / log( 0.5 );
+    }
+  std::cout << std::endl;
+
+  oldError = error;
 }
 
 // main
