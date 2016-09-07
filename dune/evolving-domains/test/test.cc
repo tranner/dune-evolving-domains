@@ -3,12 +3,19 @@
 // iostream includes
 #include <iostream>
 
+// mpi includes
+#include <dune/fem/misc/mpimanager.hh>
+
 // grid includes
+#ifdef HAVE_DUNE_ALUGRID
 #include <dune/alugrid/grid.hh>
 #include <dune/alugrid/dgf.hh>
+#endif
 
+#ifdef HAVE_ALBERTA
 #include <dune/grid/albertagrid.hh>
 #include <dune/grid/albertagrid/dgfparser.hh>
+#endif
 
 template <class HGridType >
 void algorithm ( HGridType &grid, const int step )
@@ -36,9 +43,13 @@ void algorithm ( HGridType &grid, const int step )
 int main ( int argc, char **argv )
 try
 {
+  // initialize MPI, if necessary
+  Dune::Fem::MPIManager::initialize( argc, argv );
+
   // create grid from DGF file
   const std::string gridFile = "ball.dgf";
 
+#ifdef HAVE_DUNE_ALUGRID
   {
     // type of hierarchical grid
     typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HGridType;
@@ -65,7 +76,11 @@ try
 	algorithm( grid, step );
       }
   }
+#else
+  std::cerr << "dune-alugrid not found in configure" << std::endl;
+#endif
 
+#if HAVE_ALBERTA
   {
     typedef Dune::AlbertaGrid< 3 > HGridType;
     std::cout << "Dune :: AlbertaGrid< 3 >" << std::endl;
@@ -91,7 +106,9 @@ try
 	algorithm( grid, step );
       }
   }
-
+#else
+  std::cerr << "alberta not found in configuration" << std::endl;
+#endif
 
   return 0;
 }
