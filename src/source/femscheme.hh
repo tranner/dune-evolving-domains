@@ -214,6 +214,24 @@ public:
     return Dune::Fem::MPIManager::comm().sum( tmp );
   }
 
+  template< class GridExactSolution >
+  double l2Error( const GridExactSolution& exact ) const
+  {
+    // find l2 error
+    typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
+    L2NormType l2norm( gridPart_ );
+    return l2norm.distance( exact, solution_ );
+  }
+
+  template< class GridExactSolution >
+  double h1Error( const GridExactSolution& exact ) const
+  {
+    // find h1 error
+    typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
+    H1NormType h1norm( gridPart_ );
+    return h1norm.distance( exact, solution_ );
+  }
+
 protected:
   const ModelType& implicitModel_;   // the mathematical model
 
