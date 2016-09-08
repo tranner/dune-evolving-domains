@@ -44,6 +44,54 @@
 #include "probleminterface.hh"
 
 template <class FunctionSpace>
+class SurfacePoissonProblem : public ProblemInterface < FunctionSpace >
+{
+  typedef ProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi[ 0 ] = 6.0 * x[0] * x[1];
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi[ 0 ] = x[0] * x[1];
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret[ 0 ][ 0 ] = x[ 1 ] - 2.0 * x[ 0 ] * x[ 0 ] * x[ 1 ];
+    ret[ 0 ][ 1 ] = x[ 0 ] - 2.0 * x[ 0 ] * x[ 1 ] * x[ 1 ];
+    ret[ 0 ][ 2 ] = - 2.0 * x[ 0 ] * x[ 1 ] * x[ 2 ];
+  }
+  //! mass coefficient has to be 1 for this problem
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    m = RangeType(0);
+  }
+  //! the Dirichlet boundary data (default calls u)
+  virtual void g(const DomainType& x,
+		 RangeType& value) const
+  {
+    value = RangeType( 0 );
+  }
+};
+
+template <class FunctionSpace>
 class BulkProblem : public ProblemInterface < FunctionSpace >
 {
   typedef ProblemInterface < FunctionSpace >  BaseType;
