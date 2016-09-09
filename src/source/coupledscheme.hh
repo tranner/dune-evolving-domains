@@ -301,8 +301,8 @@ public:
 
     // inverse operator using linear operator
     const double innerSolverEps = solverEps_;
-    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps, 10000 );
-    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps, 10000 );
+    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps, 2 );
+    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps, 2 );
 
     const double eps = std::max( solverEps_ * solverEps_ *
       ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 6.0e-16 );
