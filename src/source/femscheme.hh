@@ -205,7 +205,7 @@ public:
     implicitOperator_.prepare( solution_, rhs_ );
 
     // stop rhs timer
-    std::cout << "rhs assembly time:\t" << Dune::FemTimer::stop( rhsIdx_ ) << std::endl;
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void solve ( bool assemble )
@@ -218,7 +218,7 @@ public:
       // assemble linear operator (i.e. setup matrix)
       implicitOperator_.jacobian( solution_ , linearOperator_ );
 
-      std::cout << "matrix assembly time:\t" << Dune::FemTimer::stop( matrixIdx_ ) << std::endl;
+      Dune::FemTimer::stop( matrixIdx_ );
     }
 
     // inverse operator using linear operator
@@ -226,7 +226,7 @@ public:
     // solve system
     Dune::FemTimer::start( solverIdx_ );
     invOp( rhs_, solution_ );
-    std::cout << "solver time:\t\t" << Dune::FemTimer::stop( solverIdx_ ) << std::endl;
+    Dune::FemTimer::stop( solverIdx_ );
     //! [Solve the system]
   }
 
@@ -252,6 +252,14 @@ public:
     typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
     H1NormType h1norm( gridPart_ );
     return h1norm.distance( exact, solution_ );
+  }
+
+  void printTimers() const
+  {
+    Dune::FemTimer::print( std::cout, "Timing data" );
+    Dune::FemTimer::removeFrom( rhsIdx_ );
+    Dune::FemTimer::removeFrom( matrixIdx_ );
+    Dune::FemTimer::removeFrom( solverIdx_ );
   }
 
 protected:

@@ -214,6 +214,9 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
   const int dofs = scheme.nDofs();
   Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
+
+  // print timing data
+  scheme.printTimers();
 }
 
 // main

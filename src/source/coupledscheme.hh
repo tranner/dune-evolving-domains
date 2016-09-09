@@ -299,7 +299,7 @@ public:
     surface().prepare();
 
     // stop rhs timer
-    std::cout << "rhs assembly time:\t" << Dune::FemTimer::stop( rhsIdx_ ) << std::endl;
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void solve( bool assemble )
@@ -316,7 +316,7 @@ public:
       bulkSurfaceImplicitOperator_.jacobian( bulk().solution(), bulkSurfaceLinearOperator_ );
       surfaceBulkImplicitOperator_.jacobian( surface().solution(), surfaceBulkLinearOperator_ );
 
-      std::cout << "matrix assembly time:\t" << Dune::FemTimer::stop( matrixIdx_ ) << std::endl;
+      Dune::FemTimer::stop( matrixIdx_ );
     }
 
     // inverse operator using linear operator
@@ -382,8 +382,7 @@ public:
 	  break;
       }
 
-    std::cout << "solver iterations:\t" << iterations_ << std::endl;
-    std::cout << "solver time:\t\t" << Dune::FemTimer::stop( solverIdx_ ) << std::endl;
+    Dune::FemTimer::stop( solverIdx_ );
 
     if( update >= eps )
       std::cerr << "solver iteration not converged" << std::endl;
@@ -402,6 +401,14 @@ public:
   const int nElements() const
   {
     return bulk().nElements() + surface().nElements();
+  }
+
+  void printTimers() const
+  {
+    Dune::FemTimer::print( std::cout, "Timing data" );
+    Dune::FemTimer::removeFrom( rhsIdx_ );
+    Dune::FemTimer::removeFrom( matrixIdx_ );
+    Dune::FemTimer::removeFrom( solverIdx_ );
   }
 
 protected:
