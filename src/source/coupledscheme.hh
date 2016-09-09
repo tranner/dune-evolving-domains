@@ -21,6 +21,9 @@
 #include <dune/fem/misc/l2norm.hh>
 #include <dune/fem/misc/h1norm.hh>
 
+// timer
+#include <dune/fem/misc/femtimer.hh>
+
 // local includes
 #include "probleminterface.hh"
 #include "rhs.hh"
@@ -267,7 +270,11 @@ public:
     // tolerance for iterative solver
     solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
     maxIter_( Dune::Fem::Parameter::getValue< unsigned int >( "coupled.maxiter", 1000 ) ),
-    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) )
+    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) ),
+    // timer indexes
+    rhsIdx_( Dune::FemTimer::addTo( "rhs", 1 ) ),
+    matrixIdx_( Dune::FemTimer::addTo( "matrix", 1 ) ),
+    solverIdx_( Dune::FemTimer::addTo( "solver", 1 ) )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -282,8 +289,17 @@ public:
 
   void prepare()
   {
+    // reset timers
+    Dune::FemTimer::reset();
+
+    // start rhs timer
+    Dune::FemTimer::start( rhsIdx_ );
+
     bulk().prepare();
     surface().prepare();
+
+    // stop rhs timer
+    std::cout << "rhs assembly time:\t" << Dune::FemTimer::stop( rhsIdx_ ) << std::endl;
   }
 
   void solve( bool assemble )
@@ -291,12 +307,16 @@ public:
     //! [Solve the system]
     if( assemble )
     {
+      Dune::FemTimer::start( matrixIdx_ );
+
       // assemble linear operator (i.e. setup matrix)
       bulk().implicitOperator().jacobian( bulk().solution() , bulk().linearOperator() );
       surface().implicitOperator().jacobian( surface().solution() , surface().linearOperator() );
 
       bulkSurfaceImplicitOperator_.jacobian( bulk().solution(), bulkSurfaceLinearOperator_ );
       surfaceBulkImplicitOperator_.jacobian( surface().solution(), surfaceBulkLinearOperator_ );
+
+      std::cout << "matrix assembly time:\t" << Dune::FemTimer::stop( matrixIdx_ ) << std::endl;
     }
 
     // inverse operator using linear operator
@@ -317,6 +337,8 @@ public:
 
     BulkDiscreteFunctionType Bv( bulkSolution() );
     SurfaceDiscreteFunctionType Btu( surfaceSolution() );
+
+    Dune::FemTimer::start( solverIdx_ );
 
     iterations_ = 0;
     double update = 2.0 * eps;
@@ -359,6 +381,9 @@ public:
 	if( update < eps )
 	  break;
       }
+
+    std::cout << "solver iterations:\t" << iterations_ << std::endl;
+    std::cout << "solver time:\t\t" << Dune::FemTimer::stop( solverIdx_ ) << std::endl;
 
     if( update >= eps )
       std::cerr << "solver iteration not converged" << std::endl;
@@ -403,6 +428,10 @@ private:
   unsigned int iterations_;
   const unsigned int maxIter_;
   const bool verbose_;
+
+  unsigned int rhsIdx_;
+  unsigned int matrixIdx_;
+  unsigned int solverIdx_;
 };
 
 #endif // #ifndef COUPLED_FEMSCHEME_HH
