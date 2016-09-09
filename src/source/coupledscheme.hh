@@ -436,6 +436,7 @@ private:
   const unsigned int maxIter_;
   const bool verbose_;
 
+protected:
   unsigned int rhsIdx_;
   unsigned int matrixIdx_;
   unsigned int solverIdx_;

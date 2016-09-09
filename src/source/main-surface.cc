@@ -246,6 +246,8 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   const double h = EvolvingDomain :: GridWidth :: gridWidth( gridPart );
   const int dofs = scheme.dofs();
   Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
+
+  scheme.printTimers();
 }
 
 // main
