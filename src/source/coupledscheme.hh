@@ -17,6 +17,10 @@
 // include solver
 #include <dune/fem/solver/istlsolver.hh>
 
+// error norms
+#include <dune/fem/misc/l2norm.hh>
+#include <dune/fem/misc/h1norm.hh>
+
 // local includes
 #include "probleminterface.hh"
 #include "rhs.hh"
@@ -296,12 +300,12 @@ public:
     }
 
     // inverse operator using linear operator
-    const double innerSolverEps = solverEps_ * 1.0e-2;
-    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps );
-    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps );
+    const double innerSolverEps = solverEps_;
+    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps, 10000 );
+    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps, 10000 );
 
     const double eps = std::max( solverEps_ * solverEps_ *
-      ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 1.0e-16 );
+      ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 6.0e-16 );
 
     // store old solution
     BulkDiscreteFunctionType oldBulkSolution( bulkSolution() );
@@ -355,6 +359,9 @@ public:
 	if( update < eps )
 	  break;
       }
+
+    if( update >= eps )
+      std::cerr << "solver iteration not converged" << std::endl;
   }
 
   const int iterations() const

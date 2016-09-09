@@ -28,6 +28,11 @@ add_dune_alberta_flags(poisson-surface GRIDDIM ${SURFACE_GRIDDIM} WORLDDIM ${WOR
 target_link_dune_default_libraries( poisson-surface )
 target_compile_definitions( poisson-surface PRIVATE ${GRIDTYPE};GRIDDIM=${SURFACE_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART};FEMTIMER=1 )
 
+add_executable(poisson-coupled poisson-coupled.cc)
+set(BULK_GRIDDIM ${GRIDDIM})
+add_dune_alberta_flags(poisson-coupled GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
+target_link_dune_default_libraries( poisson-coupled )
+target_compile_definitions( poisson-coupled PRIVATE ${GRIDTYPE};GRIDDIM=${BULK_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART} )
 
 set(EXTRA_DIST   main.cc deformation.hh dirichletconstraints.hh elliptic.hh femscheme.hh heat.hh heatmodel.hh heatscheme.hh model.hh probleminterface.hh rhs.hh temporalprobleminterface.hh heat2.dox)
 
