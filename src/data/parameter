@@ -32,7 +32,7 @@ heat.timestep: 1.0
 heat.endtime: 1
 heat.theta: 1
 heat.level: 1
-heat.repeats: 10
+heat.repeats: 4
 heat.reducetimestepfactor: 0.125
 
 heat.problem:surface_parabolic
