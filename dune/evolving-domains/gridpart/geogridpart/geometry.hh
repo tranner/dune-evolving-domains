@@ -185,9 +185,7 @@ namespace Dune
       GlobalCoordinate global ( const LocalCoordinate &local ) const
       {
 	GlobalCoordinate y;
-	const HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
-	const LocalFunctionType lf = coordFunction().localFunction( e );
-	lf.evaluate( local, y );
+	evaluate( local, y );
 	return y;
       }
       LocalCoordinate local ( const GlobalCoordinate &global ) const
