@@ -130,6 +130,7 @@ struct FemSchemeHolder
 
   EllipticOperatorType &implicitOperator() { return implicitOperator_; }
   LinearOperatorType &linearOperator() { return linearOperator_; }
+  const LinearOperatorType &linearOperator() const { return linearOperator_; }
 
   const GridViewType gridView() const { return static_cast< GridViewType >( gridPart_ ); }
 
@@ -261,6 +262,10 @@ public:
   typedef DifferentiableMixingOperator< SurfaceBulkLinearOperatorType, ExchangeModelType, CoupledGridType >
     SurfaceBulkOperatorType;
 
+  // types of full system matrix
+  using BlockType = typename BulkDiscreteFunctionType :: DofBlockType;
+  using FullMatrixType = typename Dune::BCRSMatrix< Dune::FieldMatrix< double, 1, 1 > >;
+
   CoupledScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
 		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
   : bulkScheme_( bulkScheme ),
@@ -324,20 +329,90 @@ public:
       Dune::FemTimer::stop( matrixIdx_ );
     }
 
-#if 1
     Dune::FemTimer::start( solverIdx_ );
-
-    // assemble full block matrix
-    using BlockType = typename BulkDiscreteFunctionType :: DofBlockType;
-    using FullMatrixType = typename Dune::BCRSMatrix< Dune::FieldMatrix< double, 1, 1 > >;
 
     // number of dofs for bulk and surface vectors
     const unsigned int nBulk = bulk().nDofs();
     const unsigned int nSurf = surface().nDofs();
 
     // construct matrix
-    typename FullMatrixType :: BuildMode bm = FullMatrixType :: random;
-    FullMatrixType systemMatrix( nBulk + nSurf, nBulk + nSurf, bm );
+    FullMatrixType systemMatrix( nBulk + nSurf, nBulk + nSurf, FullMatrixType :: random );
+    assembleSystemMatrix( systemMatrix );
+
+    using DF = Dune::BlockVector< BlockType >;
+
+    DF rhs( nBulk + nSurf );
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	rhs[ i ] = *bulk().rhs().block(i);
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	rhs[ i+nBulk ] = *surface().rhs().block(i);
+      }
+
+    Dune::MatrixAdapter< FullMatrixType, DF, DF > systemMatrixAdapter( systemMatrix );
+    // Dune::SeqJac< FullMatrixType, DF, DF > preconditioner( systemMatrix, 1, 0.1 );
+    Dune::SeqGS< FullMatrixType, DF, DF > preconditioner( systemMatrix, 1, 0.1 );
+    Dune::SeqScalarProduct< DF > scp;
+
+    using Solver = typename Dune::RestartedGMResSolver< DF >;
+    Solver solver( systemMatrixAdapter, scp,
+     		   preconditioner,
+    		   solverEps_, 5,
+		   std::numeric_limits< int >::max(),
+    		   false );
+
+    DF x( nBulk + nSurf );
+    Dune::InverseOperatorResult res;
+    solver.apply( x, rhs, res );
+
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	*bulk().solution().block(i) = x[ i ];
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	*surface().solution().block(i) = x[ i+nBulk ];
+      }
+
+    Dune::FemTimer::stop( solverIdx_ );
+
+    // extract results data
+    iterations_ = res.iterations;
+    if( not res.converged )
+      std::cerr << "warning: solver not converged" << std::endl;
+  }
+
+  const int iterations() const
+  {
+    return iterations_;
+  }
+
+  const int nDofs() const
+  {
+    return bulk().nDofs() + surface().nDofs();
+  }
+
+  const int nElements() const
+  {
+    return bulk().nElements() + surface().nElements();
+  }
+
+  void printTimers() const
+  {
+    Dune::FemTimer::print( std::cout, "Timing data" );
+    Dune::FemTimer::removeFrom( rhsIdx_ );
+    Dune::FemTimer::removeFrom( matrixIdx_ );
+    Dune::FemTimer::removeFrom( solverIdx_ );
+  }
+
+protected:
+  void assembleSystemMatrix( FullMatrixType& systemMatrix ) const
+  {
+    // number of dofs for bulk and surface vectors
+    const unsigned int nBulk = bulk().nDofs();
+    const unsigned int nSurf = surface().nDofs();
 
     // extract matrices
     const auto& bulkBulkMatrix = bulk().linearOperator().systemMatrix().matrix();
@@ -394,8 +469,8 @@ public:
 	  }
       }
 
-     // finalize column setup phase
-     systemMatrix.endindices();
+    // finalize column setup phase
+    systemMatrix.endindices();
 
     // set entries using random access
     for( unsigned int i = 0; i < nBulk; ++i )
@@ -438,148 +513,6 @@ public:
 	    systemMatrix[i+nBulk][j+nBulk] = val;
 	  }
       }
-
-    using DF = Dune::BlockVector< BlockType >;
-
-    DF rhs( nBulk + nSurf );
-    for( unsigned int i = 0; i < nBulk; ++i )
-      {
-	rhs[ i ] = *bulk().rhs().block(i);
-      }
-    for( unsigned int i = 0; i < nSurf; ++i )
-      {
-	rhs[ i+nBulk ] = *surface().rhs().block(i);
-      }
-
-    Dune::MatrixAdapter< FullMatrixType, DF, DF > systemMatrixAdapter( systemMatrix );
-    Dune::SeqJac< FullMatrixType, DF, DF > preconditioner( systemMatrix, 1, 0.1 );
-    Dune::SeqScalarProduct< DF > scp;
-
-    using Solver = typename Dune::RestartedGMResSolver< DF >;
-    Solver solver( systemMatrixAdapter, scp,
-     		   preconditioner,
-    		   solverEps_, 5,
-		   std::numeric_limits< int >::max(),
-    		   false );
-
-#if 0
-    using Solver = typename Dune::CGSolver< DF >;
-    Solver solver( systemMatrixAdapter,
-		   preconditioner,
-		   solverEps_, std::numeric_limits< int >::max(),
-		   false );
-#endif
-
-
-    DF x( nBulk + nSurf );
-    Dune::InverseOperatorResult res;
-    solver.apply( x, rhs, res );
-
-    for( unsigned int i = 0; i < nBulk; ++i )
-      {
-	*bulk().solution().block(i) = x[ i ];
-      }
-    for( unsigned int i = 0; i < nSurf; ++i )
-      {
-	*surface().solution().block(i) = x[ i+nBulk ];
-      }
-
-    Dune::FemTimer::stop( solverIdx_ );
-
-#endif
-
-#if 0
-    // inverse operator using linear operator
-    const double innerSolverEps = solverEps_;
-    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps, 2 );
-    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps, 2 );
-
-    const double eps = std::max( solverEps_ * solverEps_ *
-      ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 6.0e-16 );
-
-    // store old solution
-    BulkDiscreteFunctionType oldBulkSolution( bulkSolution() );
-    SurfaceDiscreteFunctionType oldSurfaceSolution( surfaceSolution() );
-
-    // construct new rhs
-    BulkDiscreteFunctionType myBulkRhs( bulk().rhs() );
-    SurfaceDiscreteFunctionType mySurfaceRhs( surface().rhs() );
-
-    BulkDiscreteFunctionType Bv( bulkSolution() );
-    SurfaceDiscreteFunctionType Btu( surfaceSolution() );
-
-    Dune::FemTimer::start( solverIdx_ );
-
-    iterations_ = 0;
-    double update = 2.0 * eps;
-    for( iterations_ = 0; iterations_ < maxIter_; ++iterations_ )
-      {
-	// store old solution
-	oldBulkSolution.assign( bulkSolution() );
-	oldSurfaceSolution.assign( surfaceSolution() );
-
-	// construct new rhs
-	myBulkRhs.assign( bulk().rhs() );
-	mySurfaceRhs.assign( surface().rhs() );
-	surfaceBulkLinearOperator_( surfaceSolution(), Bv );
-	bulkSurfaceLinearOperator_( bulkSolution(), Btu );
-
-	myBulkRhs -= Bv;
-	mySurfaceRhs -= Btu;
-
-	// solve system
-	bulkInvOp( myBulkRhs, bulk().solution() );
-	surfaceInvOp( mySurfaceRhs, surface().solution() );
-	//! [Solve the system]
-
-	// find difference
-	oldBulkSolution -= bulkSolution();
-	oldSurfaceSolution -= surfaceSolution();
-
-	update = oldBulkSolution.normSquaredDofs() + oldSurfaceSolution.normSquaredDofs();
-	update = Dune::Fem::MPIManager::comm().sum( update );
-
-	if( Dune::Fem::MPIManager::rank() == 0 and verbose_ )
-	  {
-	    std::cout << " it: " << iterations_
-		    << " update: " << update << " / " << eps
-		    << " bulk solver it: " << bulkInvOp.iterations()
-		    << " surface solver it: " << surfaceInvOp.iterations()
-		    << std::endl;
-	  }
-
-	if( update < eps )
-	  break;
-      }
-
-    Dune::FemTimer::stop( solverIdx_ );
-
-    if( update >= eps )
-      std::cerr << "solver iteration not converged" << std::endl;
-#endif
-  }
-
-  const int iterations() const
-  {
-    return iterations_;
-  }
-
-  const int nDofs() const
-  {
-    return bulk().nDofs() + surface().nDofs();
-  }
-
-  const int nElements() const
-  {
-    return bulk().nElements() + surface().nElements();
-  }
-
-  void printTimers() const
-  {
-    Dune::FemTimer::print( std::cout, "Timing data" );
-    Dune::FemTimer::removeFrom( rhsIdx_ );
-    Dune::FemTimer::removeFrom( matrixIdx_ );
-    Dune::FemTimer::removeFrom( solverIdx_ );
   }
 
 protected:
