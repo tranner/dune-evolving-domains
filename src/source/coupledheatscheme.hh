@@ -202,8 +202,14 @@ public:
 
   void prepare()
   {
+    // start rhs timer
+    Dune::FemTimer::start( rhsIdx_ );
+
     bulk().prepare();
     surface().prepare();
+
+    // stop rhs timer
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void initialize()
@@ -293,6 +299,7 @@ private:
   double l2h1SurfaceError_;
 
   using BaseType::solverEps;
+  using BaseType::rhsIdx_;
 };
 
 #endif // #ifndef COUPLED_HEATSCHEME_HH

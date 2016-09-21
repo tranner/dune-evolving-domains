@@ -95,19 +95,23 @@ namespace Dune
       //! type of jacobian inverse transposed
       typedef FieldMatrix< ctype, coorddimension, mydimension > JacobianInverseTransposed;
 
+      using HostReferenceElementType = Dune::ReferenceElement< ctype, dimension >;
       using ReferenceElementType = Dune::ReferenceElement< ctype, mydimension >;
+      using EmbeddedGeometry = Dune::AffineGeometry< double, dimension - codimension, dimension >;
 
       GeoGeometry () = delete;
 
       GeoGeometry( const CoordFunctionType& coordFunction, const HostEntity0SeedType& seed,
 		   const HostGeometry& hostGeometry, const unsigned int index = 0 )
 	: coordFunction_( &coordFunction ), seed_( seed ),
-	  hostGeometry_( hostGeometry ), index_( index )
+	  hostGeometry_( hostGeometry ),
+	  embedMap_( hostReferenceElement().template geometry< codimension >( index ) )
       {}
 
       GeoGeometry( const ThisType& other )
 	: coordFunction_( other.coordFunction_ ), seed_( other.seed_ ),
-	  hostGeometry_( other.hostGeometry_ ), index_( other.index_ )
+	  hostGeometry_( other.hostGeometry_ ),
+	  embedMap_( other.embedMap_ )
       {}
 
       const ThisType &operator= ( const ThisType &other )
@@ -119,12 +123,7 @@ namespace Dune
 
       void evaluate( const LocalCoordinate& x, GlobalCoordinate& y ) const
       {
-	Dune::GeometryType geoType;
-	geoType.makeSimplex( dimension );
-
-	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( geoType );
-	const auto& embedMap = refEl.template geometry< codimension >( index_ );
-	DimensionCoordinate xElement = embedMap.global( x );
+	const DimensionCoordinate xElement = embedMap_.global( x );
 
 	HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
 	const LocalFunctionType lf = coordFunction().localFunction( e );
@@ -134,12 +133,7 @@ namespace Dune
       {
 	const auto dG = hostGeometry_.jacobianTransposed( x );
 
-	Dune::GeometryType geoType;
-	geoType.makeSimplex( dimension );
-
-	const auto& refEl = Dune::ReferenceElements< ctype, dimension >::general( geoType );
-	const auto& embedMap = refEl.template geometry< codimension >( index_ );
-	DimensionCoordinate xElement = embedMap.global( x );
+	const DimensionCoordinate xElement = embedMap_.global( x );
 
 	typename LocalFunctionType :: JacobianRangeType dF;
 	HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
@@ -191,9 +185,7 @@ namespace Dune
       GlobalCoordinate global ( const LocalCoordinate &local ) const
       {
 	GlobalCoordinate y;
-	const HostEntity0Type e = coordFunction().gridPart().grid().entity( seed_ );
-	const LocalFunctionType lf = coordFunction().localFunction( e );
-	lf.evaluate( local, y );
+	evaluate( local, y );
 	return y;
       }
       LocalCoordinate local ( const GlobalCoordinate &global ) const
@@ -295,13 +287,20 @@ namespace Dune
       {
 	return Dune::ReferenceElements< ctype, mydimension >::general( type() );
       }
+      const HostReferenceElementType& hostReferenceElement() const
+      {
+	Dune::GeometryType geoType;
+	geoType.makeSimplex( dimension );
+	return Dune::ReferenceElements< ctype, dimension >::general( geoType );
+      }
 
     private:
       const CoordFunctionType *coordFunction_ = nullptr;
       const HostEntity0SeedType seed_;
       const HostGeometry hostGeometry_;
-      const unsigned int index_;
       bool set_;
+
+      const EmbeddedGeometry embedMap_;
     };
   } // namespace Fem
 

@@ -3,11 +3,12 @@
 // iostream includes
 #include <iostream>
 
-// include grid part
-#include <dune/fem/gridpart/adaptiveleafgridpart.hh>
-
+// dune grid includes
 #include <dune/grid/albertagrid/agrid.hh>
 #include <dune/grid/albertagrid/dgfparser.hh>
+
+// include grid part
+#include <dune/fem/gridpart/adaptiveleafgridpart.hh>
 
 #define DEFORMATION 1
 // include geometrty grid part
@@ -28,9 +29,10 @@
 
 // include header of adaptive scheme
 #include "coupledgrid.hh"
-#include "coupledheat.hh"
-#include "heatmodel.hh"
-#include "coupledheatscheme.hh"
+#include "coupledpoisson.hh"
+
+#include "model.hh"
+#include "coupledscheme.hh"
 
 #include <dune/fem/space/common/functionspace.hh>
 template< int dimWorld >
@@ -65,23 +67,13 @@ struct DeformationCoordFunction
   typedef typename FunctionSpaceType::DomainType DomainType;
   typedef typename FunctionSpaceType::RangeType RangeType;
 
-  explicit DeformationCoordFunction ( const double time = 0.0 )
-  : time_( time )
+  explicit DeformationCoordFunction ()
   {}
 
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
-    const double at = 1.0 + 0.25 * sin( time_ );
-
-    y[ 0 ] = x[ 0 ] * sqrt(at);
-    y[ 1 ] = x[ 1 ];
-    y[ 2 ] = x[ 2 ];
+    y = x;
   }
-
-  void setTime ( const double time ) { time_ = time; }
-
-private:
-  double time_;
 };
 
 // Assemble-solve-estimate-mark-refine-IO-error-doitagain
@@ -139,26 +131,23 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 #endif
 
   // type of the mathematical model used
-  using BulkHeatModelType = HeatModel< FunctionSpaceType, BulkGridPartType >;
-  using SurfaceHeatModelType = HeatModel< FunctionSpaceType, SurfaceGridPartType >;
+  using BulkModelType = DiffusionModel< FunctionSpaceType, BulkGridPartType >;
+  using SurfaceModelType = DiffusionModel< FunctionSpaceType, SurfaceGridPartType >;
 
   // choose problem
-  using BulkProblemType = typename BulkHeatModelType :: ProblemType;
+  using BulkProblemType = typename BulkModelType :: ProblemType;
   BulkProblemType* bulkProblemPtr = 0;
-  using SurfaceProblemType = typename SurfaceHeatModelType :: ProblemType;
+  using SurfaceProblemType = typename SurfaceModelType :: ProblemType;
   SurfaceProblemType* surfaceProblemPtr = 0;
 
-  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic" };
-  const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
+  // const std::string problemNames [] = { "coupled_poisson" };
+  // const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupledpoisson.problem", problemNames );
+  const int problemNumber = 0;
   switch( problemNumber )
     {
     case 0:
-      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType >( timeProvider );
-      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType >( timeProvider );
-      break;
-    case 1:
-      bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
-      surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
+      bulkProblemPtr = new BulkProblem< FunctionSpaceType >();
+      surfaceProblemPtr = new SurfaceProblem< FunctionSpaceType >();
       break;
     default:
       std::cerr << "unrecognised problem name" << std::endl;
@@ -169,26 +158,22 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   assert( surfaceProblemPtr );
   BulkProblemType& bulkProblem = *bulkProblemPtr;
   SurfaceProblemType& surfaceProblem = *surfaceProblemPtr;
-  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
-  ExchangeProblemType exchangeProblem( timeProvider );
+  typedef ExchangeProblem< FunctionSpaceType > ExchangeProblemType;
+  ExchangeProblemType exchangeProblem;
 
-  BulkHeatModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
-  BulkHeatModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
-  SurfaceHeatModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart, true );
-  SurfaceHeatModelType surfaceExplicitModel( surfaceProblem, surfaceGridPart, false );
-  SurfaceHeatModelType exchangeImplicitModel( exchangeProblem, surfaceGridPart, true );
+  BulkModelType bulkImplicitModel( bulkProblem, bulkGridPart );
+  SurfaceModelType surfaceImplicitModel( surfaceProblem, surfaceGridPart );
+  SurfaceModelType exchangeImplicitModel( exchangeProblem, surfaceGridPart );
 
   // create adaptive scheme
-  typedef CoupledHeatScheme< BulkHeatModelType, BulkHeatModelType,
-			     SurfaceHeatModelType, SurfaceHeatModelType,
-			     SurfaceHeatModelType,
-			     CoupledGeoGridPartType > SchemeType;
+  typedef CoupledScheme< BulkModelType, SurfaceModelType,
+			 SurfaceModelType, CoupledGeoGridPartType > SchemeType;
 
-  typename SchemeType :: BulkFemSchemeHolderType bulkScheme( bulkGridPart, bulkImplicitModel, bulkExplicitModel );
-  typename SchemeType :: SurfaceFemSchemeHolderType surfaceScheme( surfaceGridPart, surfaceImplicitModel, surfaceExplicitModel );
+  typename SchemeType :: BulkFemSchemeHolderType bulkScheme( bulkGridPart, bulkImplicitModel );
+  typename SchemeType :: SurfaceFemSchemeHolderType surfaceScheme( surfaceGridPart, surfaceImplicitModel );
 
   SchemeType scheme( bulkScheme, surfaceScheme,
-		     exchangeImplicitModel, coupledGeoGridPart, step );
+		     exchangeImplicitModel, coupledGeoGridPart );
 
   typedef Dune::Fem::GridFunctionAdapter< BulkProblemType, BulkGridPartType > BulkGridExactSolutionType;
   BulkGridExactSolutionType bulkGridExactSolution("bulk exact solution", bulkProblem, bulkGridPart, 5 );
@@ -206,63 +191,31 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   SurfaceIOTupleType surfaceIoTuple( &(scheme.surfaceSolution()), &surfaceGridExactSolution) ; // tuple with pointers
   SurfaceDataOutputType surfaceDataOutput( coupledGrid.surfaceGrid(), surfaceIoTuple, DataOutputParameters( step, "surface" ) );
 
-  const double endTime  = Dune::Fem::Parameter::getValue< double >( "heat.endtime", 2.0 );
-  const double dtreducefactor = Dune::Fem::Parameter::getValue< double >("heat.reducetimestepfactor", 0.25 );
-  double timeStep = Dune::Fem::Parameter::getValue< double >( "heat.timestep", 0.125 );
+  // assemble explicit pare
+  scheme.prepare();
 
-  timeStep *= pow(dtreducefactor,step);
-
-  //! [time loop]
-  // initialize with fixed time step
-  timeProvider.init( timeStep ) ;
-
-  // initialize scheme and output initial data
-  scheme.initialize();
-  // write initial solve
-  bulkDataOutput.write( timeProvider );
-  surfaceDataOutput.write( timeProvider );
-  scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider, true );
-
-  // time loop, increment with fixed time step
-  for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )
-  //! [time loop]
-  {
-    // assemble explicit pare
-    scheme.prepare();
-
-    //! [Set the new time to move to new surface]
-    deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
-
-    // solve once - but now we need to reassmble
-    scheme.solve(true);
-
-    //! [Set the new time to move to new surface]
-    bulkDataOutput.write( timeProvider );
-    surfaceDataOutput.write( timeProvider );
-
-    // finalise (compute errors)
-    scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider );
-  }
+  // solve once - but now we need to reassmble
+  scheme.solve(true);
 
   // output final solution
   bulkDataOutput.write( timeProvider );
   surfaceDataOutput.write( timeProvider );
 
-
   // get errors
-  std::vector< double > store;
-  store.push_back( scheme.linftyl2BulkError() );
-  store.push_back( scheme.l2h1BulkError() );
-  store.push_back( scheme.linftyl2SurfaceError() );
-  store.push_back( scheme.l2h1SurfaceError() );
+  const std::vector< double > store = {
+    bulkScheme.l2Error( bulkGridExactSolution ),
+    bulkScheme.h1Error( bulkGridExactSolution ),
+    surfaceScheme.l2Error( surfaceGridExactSolution ),
+    surfaceScheme.h1Error( surfaceGridExactSolution )
+  };
   Dune :: Fem :: FemEoc :: setErrors( eocId, store );
 
   // write to file / output
   const double h = EvolvingDomain :: GridWidth :: gridWidth( bulkGridPart );
   const int dofs = scheme.nDofs();
-  std::cout << "time step: " << timeStep << std::endl;
   Dune::Fem::FemEoc::write( h, dofs, 0.0, 0.0, std::cout );
 
+  // print timing data
   scheme.printTimers();
 }
 
@@ -291,10 +244,10 @@ try
 
   // add entries to eoc calculation
   std::vector<std::string> femEocHeaders;
-  femEocHeaders.push_back("$L^\\infty( L^2(\\Omega) )$ error");
-  femEocHeaders.push_back("$L^2( H^1(\\Omega) )$ error");
-  femEocHeaders.push_back("$L^\\infty( L^2(\\Gamma) )$ error");
-  femEocHeaders.push_back("$L^2( H^1(\\Gamma) )$ error");
+  femEocHeaders.push_back("$L^2(\\Omega)$ error");
+  femEocHeaders.push_back("$H^1(\\Omega)$ error");
+  femEocHeaders.push_back("$L^2(\\Gamma)$ error");
+  femEocHeaders.push_back("$H^1(\\Gamma)$ error");
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
@@ -319,14 +272,14 @@ try
   bulkGrid.loadBalance();
 
   // initial grid refinement
-  const int level = Dune::Fem::Parameter::getValue< int >( "heat.level" );
+  const int level = Dune::Fem::Parameter::getValue< int >( "poisson.level" );
 
   // refine mesh
   const int refineStepsForHalf = Dune::DGFGridInfo< HBulkGridType >::refineStepsForHalf();
   Dune::Fem::GlobalRefine::apply( bulkGrid, level * refineStepsForHalf );
 
   // setup EOC loop
-  const int repeats = Dune::Fem::Parameter::getValue< int >( "heat.repeats", 0 );
+  const int repeats = Dune::Fem::Parameter::getValue< int >( "poisson.repeats", 0 );
 
   // calculate first step
   typedef CoupledGrid< HBulkGridType, HSurfaceGridType > CoupledGridType;

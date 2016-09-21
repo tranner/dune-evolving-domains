@@ -160,12 +160,18 @@ struct HeatScheme : public FemScheme<ImplicitModel>
 
   void prepare() 
   { 
+    // start rhs timer
+    Dune::FemTimer::start( rhsIdx_ );
+
     // apply constraints, e.g. Dirichlet contraints, to the solution 
     explicitOperator_.prepare( explicitModel_.dirichletBoundary(), solution_ );
     // apply explicit operator and also setup right hand side 
     explicitOperator_( solution_, rhs_ );
     // apply constraints, e.g. Dirichlet contraints, to the result 
     explicitOperator_.prepare( solution_, rhs_ );
+
+    // stop rhs timer
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void initialize () 
@@ -214,6 +220,8 @@ private:
   ErrorOutputType errorOutput_;
   double linftyl2Error_;
   double l2h1Error_;
+
+  using BaseType::rhsIdx_;
 };
 
 #endif // end #if HEAT_FEMSCHEME_HH

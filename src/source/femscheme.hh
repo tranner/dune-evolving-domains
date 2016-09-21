@@ -71,6 +71,9 @@
 // include parameter handling
 #include <dune/fem/io/parameter.hh>
 
+// timer
+#include <dune/fem/misc/femtimer.hh>
+
 // local includes
 #include "probleminterface.hh"
 
@@ -164,7 +167,11 @@ public:
       // create linear operator (domainSpace,rangeSpace)
       linearOperator_( "assembled elliptic operator", discreteSpace_, discreteSpace_ ),
       // tolerance for iterative solver
-      solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) )
+      solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
+      // timer indexes
+      rhsIdx_( Dune::FemTimer::addTo( "rhs", 1 ) ),
+      matrixIdx_( Dune::FemTimer::addTo( "matrix", 1 ) ),
+      solverIdx_( Dune::FemTimer::addTo( "solver", 1 ) )
   {
     // set all DoF to zero
     solution_.clear();
@@ -182,6 +189,12 @@ public:
   //! setup the right hand side
   void prepare()
   {
+    // reset timers
+    Dune::FemTimer::reset();
+
+    // start rhs timer
+    Dune::FemTimer::start( rhsIdx_ );
+
     // set boundary values for solution
     implicitOperator_.prepare( implicitModel_.dirichletBoundary(), solution_ );
 
@@ -190,6 +203,9 @@ public:
 
     // apply constraints, e.g. Dirichlet contraints, to the result
     implicitOperator_.prepare( solution_, rhs_ );
+
+    // stop rhs timer
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void solve ( bool assemble )
@@ -197,14 +213,20 @@ public:
     //! [Solve the system]
     if( assemble )
     {
+      Dune::FemTimer::start( matrixIdx_ );
+
       // assemble linear operator (i.e. setup matrix)
       implicitOperator_.jacobian( solution_ , linearOperator_ );
+
+      Dune::FemTimer::stop( matrixIdx_ );
     }
 
     // inverse operator using linear operator
     LinearInverseOperatorType invOp( linearOperator_, solverEps_, solverEps_ );
     // solve system
+    Dune::FemTimer::start( solverIdx_ );
     invOp( rhs_, solution_ );
+    Dune::FemTimer::stop( solverIdx_ );
     //! [Solve the system]
   }
 
@@ -212,6 +234,32 @@ public:
   {
     int tmp = discreteSpace_.size();
     return Dune::Fem::MPIManager::comm().sum( tmp );
+  }
+
+  template< class GridExactSolution >
+  double l2Error( const GridExactSolution& exact ) const
+  {
+    // find l2 error
+    typedef Dune::Fem::L2Norm< GridPartType > L2NormType;
+    L2NormType l2norm( gridPart_ );
+    return l2norm.distance( exact, solution_ );
+  }
+
+  template< class GridExactSolution >
+  double h1Error( const GridExactSolution& exact ) const
+  {
+    // find h1 error
+    typedef Dune::Fem::H1Norm< GridPartType > H1NormType;
+    H1NormType h1norm( gridPart_ );
+    return h1norm.distance( exact, solution_ );
+  }
+
+  void printTimers() const
+  {
+    Dune::FemTimer::print( std::cout, "Timing data" );
+    Dune::FemTimer::removeFrom( rhsIdx_ );
+    Dune::FemTimer::removeFrom( matrixIdx_ );
+    Dune::FemTimer::removeFrom( solverIdx_ );
   }
 
 protected:
@@ -228,6 +276,10 @@ protected:
   LinearOperatorType linearOperator_;  // the linear operator (i.e. jacobian of the implicit)
 
   const double solverEps_ ; // eps for linear solver
+
+  unsigned int rhsIdx_;
+  unsigned int matrixIdx_;
+  unsigned int solverIdx_;
 };
 
 #endif // end #if ELLIPT_FEMSCHEME_HH

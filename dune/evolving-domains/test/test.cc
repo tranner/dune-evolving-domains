@@ -3,18 +3,26 @@
 // iostream includes
 #include <iostream>
 
+// mpi includes
+#include <dune/fem/misc/mpimanager.hh>
+
 // grid includes
+#ifdef HAVE_DUNE_ALUGRID
 #include <dune/alugrid/grid.hh>
 #include <dune/alugrid/dgf.hh>
+#endif
 
+#ifdef HAVE_ALBERTA
 #include <dune/grid/albertagrid.hh>
 #include <dune/grid/albertagrid/dgfparser.hh>
+#endif
 
 template <class HGridType >
 void algorithm ( HGridType &grid, const int step )
 {
   int n = 0;
   double volume = 0;
+  static double oldError = -1.0;
 
   const auto end = grid.template leafend<0>();
   for( auto it = grid.template leafbegin<0>(); it != end; ++it )
@@ -23,11 +31,19 @@ void algorithm ( HGridType &grid, const int step )
       n++;
     }
 
+  const double error = std::abs( volume - 4.0 * M_PI / 3.0 );
+
   std::cout << "level: " << step
 	    << " elements: " << n
 	    << " volume: " << volume
-	    << " error: " << std::abs( volume - 4.0 * M_PI / 3.0 )
-	    << std::endl;
+	    << " error: " << error;
+  if( oldError >= 0.0 )
+    {
+      std::cout << " eoc: " << log( error / oldError ) / log( 0.5 );
+    }
+  std::cout << std::endl;
+
+  oldError = error;
 }
 
 // main
@@ -36,9 +52,13 @@ void algorithm ( HGridType &grid, const int step )
 int main ( int argc, char **argv )
 try
 {
+  // initialize MPI, if necessary
+  Dune::Fem::MPIManager::initialize( argc, argv );
+
   // create grid from DGF file
   const std::string gridFile = "ball.dgf";
 
+#ifdef HAVE_DUNE_ALUGRID
   {
     // type of hierarchical grid
     typedef Dune :: ALUGrid< 3, 3, Dune::simplex, Dune::conforming > HGridType;
@@ -65,7 +85,11 @@ try
 	algorithm( grid, step );
       }
   }
+#else
+  std::cerr << "dune-alugrid not found in configure" << std::endl;
+#endif
 
+#if HAVE_ALBERTA
   {
     typedef Dune::AlbertaGrid< 3 > HGridType;
     std::cout << "Dune :: AlbertaGrid< 3 >" << std::endl;
@@ -91,7 +115,9 @@ try
 	algorithm( grid, step );
       }
   }
-
+#else
+  std::cerr << "alberta not found in configuration" << std::endl;
+#endif
 
   return 0;
 }

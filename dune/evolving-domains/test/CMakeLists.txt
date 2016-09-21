@@ -26,6 +26,6 @@ target_compile_definitions( test-coupled PRIVATE ${GRIDTYPE};GRIDDIM=${BULK_GRID
 
 dune_symlink_to_source_files(FILES parameter sphere2.dgf ball.dgf)
 
-add_executable(mytest test.cc)
-target_link_dune_default_libraries( mytest )
-add_dune_alberta_flags(mytest GRIDDIM 3 WORLDDIM 3)
+add_executable( test-refinement-projection test.cc)
+dune_target_enable_all_packages( test-refinement-projection )
+add_dune_alberta_flags( test-refinement-projection GRIDDIM 3 WORLDDIM 3 )

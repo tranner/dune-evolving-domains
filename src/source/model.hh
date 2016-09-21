@@ -144,7 +144,7 @@ public:
                    const RangeType &value, 
                    RangeType &flux ) const
   {
-    const DomainType xGlobal = entity.geometry().global( coordinate( x ) );
+    const DomainType xGlobal = entity.geometry().global( x );
     RangeType m;
     problem_.m(xGlobal,m);
     for (unsigned int i=0;i<flux.size();++i)
@@ -172,6 +172,31 @@ public:
   {
     // the flux is simply the identity 
     flux = gradient;
+  }
+
+  //! return the boundary flux
+  template< class Entity, class Point >
+  void boundaryFlux( const Entity &entity,
+		     const Point &x,
+		     const RangeType &value,
+		     RangeType &flux ) const
+  {
+    linBoundaryFlux( value, entity, x, value, flux );
+  }
+
+  //! return the boundary flux
+  template< class Entity, class Point >
+  void linBoundaryFlux( const RangeType& uBar,
+                   const Entity &entity,
+                   const Point &x,
+                   const RangeType &value,
+                   RangeType &flux ) const
+  {
+    const DomainType xGlobal = entity.geometry().global( x );
+    RangeType a;
+    problem_.a(xGlobal,a);
+    for( unsigned int i = 0; i < flux.size(); ++i )
+      flux[i] = a[i]*value[i];
   }
 
   //! exact some methods from the problem class

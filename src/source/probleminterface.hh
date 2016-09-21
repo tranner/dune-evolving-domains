@@ -44,6 +44,8 @@
 #include <dune/common/exceptions.hh>
 #include <dune/fem/function/common/function.hh>
 
+#include <dune/common/fmatrix.hh>
+
 /** \brief problem interface class for problem descriptions, i.e. right hand side,
  *         boudnary data, and, if exsistent, an exact solution.
  */

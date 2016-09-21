@@ -14,8 +14,18 @@
 #include <dune/fem/operator/linear/spoperator.hh>
 #include <dune/fem/operator/linear/istloperator.hh>
 
+// include matrix
+#include <dune/istl/bcrsmatrix.hh>
+
 // include solver
 #include <dune/fem/solver/istlsolver.hh>
+
+// error norms
+#include <dune/fem/misc/l2norm.hh>
+#include <dune/fem/misc/h1norm.hh>
+
+// timer
+#include <dune/fem/misc/femtimer.hh>
 
 // local includes
 #include "probleminterface.hh"
@@ -72,8 +82,10 @@ struct FemSchemeHolder
 
   // choose type of discrete function, Matrix implementation and solver implementation
   typedef Dune::Fem::ISTLBlockVectorDiscreteFunction< DiscreteFunctionSpaceType > DiscreteFunctionType;
-  typedef Dune::Fem::ISTLLinearOperator< DiscreteFunctionType, DiscreteFunctionType > LinearOperatorType;
+  typedef Dune::Fem::SparseRowLinearOperator< DiscreteFunctionType, DiscreteFunctionType > LinearOperatorType;
+#if 0
   typedef Dune::Fem::ISTLGMResOp< DiscreteFunctionType, LinearOperatorType > LinearInverseOperatorType;
+#endif
 
   //! define Laplace operator
   typedef DifferentiableEllipticOperator< LinearOperatorType, ModelType > EllipticOperatorType;
@@ -118,6 +130,7 @@ struct FemSchemeHolder
 
   EllipticOperatorType &implicitOperator() { return implicitOperator_; }
   LinearOperatorType &linearOperator() { return linearOperator_; }
+  const LinearOperatorType &linearOperator() const { return linearOperator_; }
 
   const GridViewType gridView() const { return static_cast< GridViewType >( gridPart_ ); }
 
@@ -249,6 +262,10 @@ public:
   typedef DifferentiableMixingOperator< SurfaceBulkLinearOperatorType, ExchangeModelType, CoupledGridType >
     SurfaceBulkOperatorType;
 
+  // types of full system matrix
+  using BlockType = typename BulkDiscreteFunctionType :: DofBlockType;
+  using FullMatrixType = typename Dune::BCRSMatrix< Dune::FieldMatrix< double, 1, 1 > >;
+
   CoupledScheme( BulkFemSchemeHolderType &bulkScheme, SurfaceFemSchemeHolderType &surfaceScheme,
 		 const ExchangeModelType &exchangeModel, const CoupledGridType &coupledGrid )
   : bulkScheme_( bulkScheme ),
@@ -263,7 +280,11 @@ public:
     // tolerance for iterative solver
     solverEps_( Dune::Fem::Parameter::getValue< double >( "poisson.solvereps", 1e-8 ) ),
     maxIter_( Dune::Fem::Parameter::getValue< unsigned int >( "coupled.maxiter", 1000 ) ),
-    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) )
+    verbose_( Dune::Fem::Parameter::getValue< bool >( "coupled.solver.verbose", false ) ),
+    // timer indexes
+    rhsIdx_( Dune::FemTimer::addTo( "rhs", 1 ) ),
+    matrixIdx_( Dune::FemTimer::addTo( "matrix", 1 ) ),
+    solverIdx_( Dune::FemTimer::addTo( "solver", 1 ) )
   {}
 
   const BulkDiscreteFunctionType &bulkSolution() const
@@ -278,8 +299,17 @@ public:
 
   void prepare()
   {
+    // reset timers
+    Dune::FemTimer::reset();
+
+    // start rhs timer
+    Dune::FemTimer::start( rhsIdx_ );
+
     bulk().prepare();
     surface().prepare();
+
+    // stop rhs timer
+    Dune::FemTimer::stop( rhsIdx_ );
   }
 
   void solve( bool assemble )
@@ -287,74 +317,71 @@ public:
     //! [Solve the system]
     if( assemble )
     {
+      Dune::FemTimer::start( matrixIdx_ );
+
       // assemble linear operator (i.e. setup matrix)
       bulk().implicitOperator().jacobian( bulk().solution() , bulk().linearOperator() );
       surface().implicitOperator().jacobian( surface().solution() , surface().linearOperator() );
 
       bulkSurfaceImplicitOperator_.jacobian( bulk().solution(), bulkSurfaceLinearOperator_ );
       surfaceBulkImplicitOperator_.jacobian( surface().solution(), surfaceBulkLinearOperator_ );
+
+      Dune::FemTimer::stop( matrixIdx_ );
     }
 
-    // inverse operator using linear operator
-    const double innerSolverEps = solverEps_ * 1.0e-2;
-    typename BulkFemSchemeHolderType :: LinearInverseOperatorType bulkInvOp( bulk().linearOperator(), innerSolverEps, innerSolverEps );
-    typename SurfaceFemSchemeHolderType :: LinearInverseOperatorType surfaceInvOp( surface().linearOperator(), innerSolverEps, innerSolverEps );
+    Dune::FemTimer::start( solverIdx_ );
 
-    const double eps = std::max( solverEps_ * solverEps_ *
-      ( bulk().rhs().normSquaredDofs()+ surface().rhs().normSquaredDofs() ), 1.0e-16 );
+    // number of dofs for bulk and surface vectors
+    const unsigned int nBulk = bulk().nDofs();
+    const unsigned int nSurf = surface().nDofs();
 
-    // store old solution
-    BulkDiscreteFunctionType oldBulkSolution( bulkSolution() );
-    SurfaceDiscreteFunctionType oldSurfaceSolution( surfaceSolution() );
+    // construct matrix
+    FullMatrixType systemMatrix( nBulk + nSurf, nBulk + nSurf, FullMatrixType :: random );
+    assembleSystemMatrix( systemMatrix );
 
-    // construct new rhs
-    BulkDiscreteFunctionType myBulkRhs( bulk().rhs() );
-    SurfaceDiscreteFunctionType mySurfaceRhs( surface().rhs() );
+    using DF = Dune::BlockVector< BlockType >;
 
-    BulkDiscreteFunctionType Bv( bulkSolution() );
-    SurfaceDiscreteFunctionType Btu( surfaceSolution() );
-
-    iterations_ = 0;
-    double update = 2.0 * eps;
-    for( iterations_ = 0; iterations_ < maxIter_; ++iterations_ )
+    DF rhs( nBulk + nSurf );
+    for( unsigned int i = 0; i < nBulk; ++i )
       {
-	// store old solution
-	oldBulkSolution.assign( bulkSolution() );
-	oldSurfaceSolution.assign( surfaceSolution() );
-
-	// construct new rhs
-	myBulkRhs.assign( bulk().rhs() );
-	mySurfaceRhs.assign( surface().rhs() );
-	surfaceBulkLinearOperator_( surfaceSolution(), Bv );
-	bulkSurfaceLinearOperator_( bulkSolution(), Btu );
-
-	myBulkRhs -= Bv;
-	mySurfaceRhs -= Btu;
-
-	// solve system
-	bulkInvOp( myBulkRhs, bulk().solution() );
-	surfaceInvOp( mySurfaceRhs, surface().solution() );
-	//! [Solve the system]
-
-	// find difference
-	oldBulkSolution -= bulkSolution();
-	oldSurfaceSolution -= surfaceSolution();
-
-	update = oldBulkSolution.normSquaredDofs() + oldSurfaceSolution.normSquaredDofs();
-	update = Dune::Fem::MPIManager::comm().sum( update );
-
-	if( Dune::Fem::MPIManager::rank() == 0 and verbose_ )
-	  {
-	    std::cout << " it: " << iterations_
-		    << " update: " << update << " / " << eps
-		    << " bulk solver it: " << bulkInvOp.iterations()
-		    << " surface solver it: " << surfaceInvOp.iterations()
-		    << std::endl;
-	  }
-
-	if( update < eps )
-	  break;
+	rhs[ i ] = *bulk().rhs().block(i);
       }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	rhs[ i+nBulk ] = *surface().rhs().block(i);
+      }
+
+    Dune::MatrixAdapter< FullMatrixType, DF, DF > systemMatrixAdapter( systemMatrix );
+    // Dune::SeqJac< FullMatrixType, DF, DF > preconditioner( systemMatrix, 1, 0.1 );
+    Dune::SeqGS< FullMatrixType, DF, DF > preconditioner( systemMatrix, 1, 0.1 );
+    Dune::SeqScalarProduct< DF > scp;
+
+    using Solver = typename Dune::RestartedGMResSolver< DF >;
+    Solver solver( systemMatrixAdapter, scp,
+     		   preconditioner,
+    		   solverEps_, 5,
+		   std::numeric_limits< int >::max(),
+    		   false );
+
+    DF x( nBulk + nSurf );
+    Dune::InverseOperatorResult res;
+    solver.apply( x, rhs, res );
+
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	*bulk().solution().block(i) = x[ i ];
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	*surface().solution().block(i) = x[ i+nBulk ];
+      }
+
+    Dune::FemTimer::stop( solverIdx_ );
+
+    // extract results data
+    iterations_ = res.iterations;
+    if( not res.converged )
+      std::cerr << "warning: solver not converged" << std::endl;
   }
 
   const int iterations() const
@@ -370,6 +397,122 @@ public:
   const int nElements() const
   {
     return bulk().nElements() + surface().nElements();
+  }
+
+  void printTimers() const
+  {
+    Dune::FemTimer::print( std::cout, "Timing data" );
+    Dune::FemTimer::removeFrom( rhsIdx_ );
+    Dune::FemTimer::removeFrom( matrixIdx_ );
+    Dune::FemTimer::removeFrom( solverIdx_ );
+  }
+
+protected:
+  void assembleSystemMatrix( FullMatrixType& systemMatrix ) const
+  {
+    // number of dofs for bulk and surface vectors
+    const unsigned int nBulk = bulk().nDofs();
+    const unsigned int nSurf = surface().nDofs();
+
+    // extract matrices
+    const auto& bulkBulkMatrix = bulk().linearOperator().systemMatrix().matrix();
+    const auto& surfSurfMatrix = surface().linearOperator().systemMatrix().matrix();
+    const auto& bulkSurfMatrix = surfaceBulkLinearOperator_.systemMatrix().matrix();
+    const auto& surfBulkMatrix = bulkSurfaceLinearOperator_.systemMatrix().matrix();
+
+    // initially set row size for each row
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	const unsigned int bbNnzRow = bulkBulkMatrix.numNonZeros( i );
+	const unsigned int bsNnzRow = bulkSurfMatrix.numNonZeros( i );
+	systemMatrix.setrowsize( i, bbNnzRow + bsNnzRow );
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	const unsigned int sbNnzRow = surfBulkMatrix.numNonZeros( i );
+	const unsigned int ssNnzRow = surfSurfMatrix.numNonZeros( i );
+	systemMatrix.setrowsize( i + nBulk, sbNnzRow + ssNnzRow );
+      }
+    systemMatrix.endrowsizes();
+
+    // add column entries to row
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	const unsigned int bbNnzRow = bulkBulkMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < bbNnzRow; ++fakeCol )
+	  {
+	    const int j = bulkBulkMatrix.realCol( i, fakeCol );
+	    systemMatrix.addindex( i, j );
+	  }
+
+	const unsigned int bsNnzRow = bulkSurfMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < bsNnzRow; ++fakeCol )
+	  {
+	    const int j = bulkSurfMatrix.realCol( i, fakeCol );
+	    systemMatrix.addindex( i, j + nBulk );
+	  }
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	const unsigned int sbNnzRow = surfBulkMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < sbNnzRow; ++fakeCol )
+	  {
+	    const int j = surfBulkMatrix.realCol( i, fakeCol );
+	    systemMatrix.addindex( i + nBulk, j );
+	  }
+
+	const unsigned int ssNnzRow = surfSurfMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < ssNnzRow; ++fakeCol )
+	  {
+	    const int j = surfSurfMatrix.realCol( i, fakeCol );
+	    systemMatrix.addindex( i + nBulk, j + nBulk );
+	  }
+      }
+
+    // finalize column setup phase
+    systemMatrix.endindices();
+
+    // set entries using random access
+    for( unsigned int i = 0; i < nBulk; ++i )
+      {
+	const unsigned int bbNnzRow = bulkBulkMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < bbNnzRow; ++fakeCol )
+	  {
+	    const auto p = bulkBulkMatrix.realValue( i, fakeCol );
+	    const auto& val = p.first;
+	    const unsigned int j = p.second;
+	    systemMatrix[i][j] = val;
+	  }
+
+	const unsigned int bsNnzRow = bulkSurfMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < bsNnzRow; ++fakeCol )
+	  {
+	    const auto p = bulkSurfMatrix.realValue( i, fakeCol );
+	    const auto& val = p.first;
+	    const unsigned int j = p.second;
+	    systemMatrix[i][j+nBulk] = val;
+	  }
+      }
+    for( unsigned int i = 0; i < nSurf; ++i )
+      {
+	const unsigned int sbNnzRow = surfBulkMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < sbNnzRow; ++fakeCol )
+	  {
+	    const auto p = surfBulkMatrix.realValue( i, fakeCol );
+	    const auto& val = p.first;
+	    const unsigned int j = p.second;
+	    systemMatrix[i+nBulk][j] = val;
+	  }
+
+	const unsigned int ssNnzRow = surfSurfMatrix.numNonZeros( i );
+	for( unsigned int fakeCol = 0; fakeCol < ssNnzRow; ++fakeCol )
+	  {
+	    const auto p = surfSurfMatrix.realValue( i, fakeCol );
+	    const auto& val = p.first;
+	    const unsigned int j = p.second;
+	    systemMatrix[i+nBulk][j+nBulk] = val;
+	  }
+      }
   }
 
 protected:
@@ -396,6 +539,11 @@ private:
   unsigned int iterations_;
   const unsigned int maxIter_;
   const bool verbose_;
+
+protected:
+  unsigned int rhsIdx_;
+  unsigned int matrixIdx_;
+  unsigned int solverIdx_;
 };
 
 #endif // #ifndef COUPLED_FEMSCHEME_HH
