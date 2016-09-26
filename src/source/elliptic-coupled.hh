@@ -305,8 +305,6 @@ template < class JacobianOperator, class Model, class CoupledGrid >
 void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, 1 >
 ::jacobian ( const BulkDiscreteFunctionType &u, JacobianOperator &jOp ) const
 {
-  typedef typename JacobianOperator::LocalMatrixType LocalMatrixType;
-
   using BulkDiscreteFunctionSpaceType = typename BulkDiscreteFunctionType :: DiscreteFunctionSpaceType;
   using SurfaceDiscreteFunctionSpaceType = typename SurfaceDiscreteFunctionType :: DiscreteFunctionSpaceType;
 
@@ -398,8 +396,6 @@ template < class JacobianOperator, class Model, class CoupledGrid >
 void DifferentiableMixingOperator< JacobianOperator, Model, CoupledGrid, -1 >
 ::jacobian ( const SurfaceDiscreteFunctionType &u, JacobianOperator &jOp ) const
 {
-  typedef typename JacobianOperator::LocalMatrixType LocalMatrixType;
-
   using SurfaceDiscreteFunctionSpaceType = typename SurfaceDiscreteFunctionType :: DiscreteFunctionSpaceType;
   using BulkDiscreteFunctionSpaceType = typename BulkDiscreteFunctionType :: DiscreteFunctionSpaceType;
 
