@@ -69,16 +69,28 @@ struct DeformationCoordFunction
   : time_( time )
   {}
 
+  DeformationCoordFunction( const DeformationCoordFunction& other )
+    : time_( other.time_ )
+  {}
+
   void evaluate ( const DomainType &x, RangeType &y ) const
   {
-    const double at = 1.0 + 0.25 * sin( time_ );
-
-    y[ 0 ] = x[ 0 ] * sqrt(at);
+    y[ 0 ] = x[ 0 ] * sqrt( a() );
     y[ 1 ] = x[ 1 ];
     y[ 2 ] = x[ 2 ];
   }
 
   void setTime ( const double time ) { time_ = time; }
+
+  double a() const
+  {
+    return 1.0 + 0.25 * sin( time_ );
+  }
+
+  double ap() const
+  {
+    return 0.25 * cos( time_ );
+  }
 
 private:
   double time_;
@@ -148,18 +160,21 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   using SurfaceProblemType = typename SurfaceHeatModelType :: ProblemType;
   SurfaceProblemType* surfaceProblemPtr = 0;
 
-  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic" };
+  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic", "coupled_stationary" };
   const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
   switch( problemNumber )
     {
     case 0:
-      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType >( timeProvider );
-      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType >( timeProvider );
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       break;
     case 1:
       bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
       surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
       break;
+    case 2:
+      bulkProblemPtr = new BulkStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      surfaceProblemPtr = new SurfaceStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
     default:
       std::cerr << "unrecognised problem name" << std::endl;
     }
