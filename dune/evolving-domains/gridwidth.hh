@@ -34,7 +34,6 @@ namespace EvolvingDomain
     double calcGridWidth( const GridPart &gridPart, const MinMax& minmax )
     {
       typedef GridPart GridPartType;
-      typedef typename GridPartType :: GridType GridType;
       typedef typename GridPartType :: template Codim<0> :: IteratorType IteratorType;
       typedef typename IteratorType :: Entity EntityType;
       typedef typename EntityType::Geometry GeometryType;
