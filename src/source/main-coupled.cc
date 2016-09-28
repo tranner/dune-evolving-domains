@@ -159,22 +159,34 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   BulkProblemType* bulkProblemPtr = 0;
   using SurfaceProblemType = typename SurfaceHeatModelType :: ProblemType;
   SurfaceProblemType* surfaceProblemPtr = 0;
+  using ExchangeProblemType = typename SurfaceHeatModelType :: ProblemType;
+  ExchangeProblemType* exchangeProblemPtr = 0;
 
-  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic", "coupled_stationary" };
+  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic", "coupled_stationary",
+  "coupled_decoupled" };
   const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
   switch( problemNumber )
     {
     case 0:
       bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
       break;
     case 1:
       bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
       surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
       break;
     case 2:
       bulkProblemPtr = new BulkStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       surfaceProblemPtr = new SurfaceStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
+    case 3:
+      bulkProblemPtr = new BulkDecoupledProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      surfaceProblemPtr = new SurfaceDecoupledProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new NoExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
     default:
       std::cerr << "unrecognised problem name" << std::endl;
     }
@@ -182,10 +194,10 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   // recover problems
   assert( bulkProblemPtr );
   assert( surfaceProblemPtr );
+  assert( exchangeProblemPtr );
   BulkProblemType& bulkProblem = *bulkProblemPtr;
   SurfaceProblemType& surfaceProblem = *surfaceProblemPtr;
-  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
-  ExchangeProblemType exchangeProblem( timeProvider );
+  ExchangeProblemType& exchangeProblem = *exchangeProblemPtr;
 
   BulkHeatModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
   BulkHeatModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );

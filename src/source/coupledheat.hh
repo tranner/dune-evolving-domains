@@ -431,6 +431,84 @@ private:
 };
 
 template <class FunctionSpace>
+class NoExchangeHeatProblem
+  : public TemporalProblemInterface< FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeFieldType       RangeFieldType;
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  NoExchangeHeatProblem( const Dune::Fem::TimeProviderBase &timeProvider )
+    : BaseType( timeProvider ),
+      alpha_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.alpha", 1.0 ) ),
+      beta_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.beta", 1.0 ) )
+  {}
+
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const
+  {
+    // set to zero
+    D = 0;
+  }
+
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    // set to zero
+    b = 0;
+  }
+
+  //! mass coefficient (default = 0)
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    // set to zero
+    m = RangeType(0);
+  }
+
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    // set to zero
+    d = RangeType(0);
+  }
+
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = RangeType(0);
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  // coupling data
+  RangeFieldType alpha() const { return alpha_; }
+  RangeFieldType beta() const { return beta_; }
+
+private:
+  const RangeFieldType alpha_;
+  const RangeFieldType beta_;
+};
+
+template <class FunctionSpace>
 class BulkParabolicProblem
   : public TemporalProblemInterface< FunctionSpace >
 {
@@ -1008,6 +1086,282 @@ private:
   const RangeFieldType beta_;
 
   const DeformationType& deformation_;
+};
+
+template <class FunctionSpace, class DeformationType >
+class BulkDecoupledProblem
+  : public TemporalProblemInterface< FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeFieldType       RangeFieldType;
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  BulkDecoupledProblem( const Dune::Fem::TimeProviderBase &timeProvider,
+		   const DeformationType& deformation )
+    : BaseType( timeProvider ),
+      deformation_( deformation ),
+      alpha_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.alpha", 1.0 ) ),
+      beta_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.beta", 1.0 ) )
+  {
+    assert( std::abs( alpha_ - 1.0 ) < 1.0e-10 );
+    assert( std::abs( beta_ - 1.0 ) < 1.0e-10 );
+  }
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    const double a = deformation_.a();
+    const double ap = deformation_.ap();
+
+    phi = x[1]*x[2] * ( cos( time() ) + sin( time() ) * ap / ( 2.0 * a ) );
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    const double a = deformation_.a();
+    const double q = x[0]*x[0] / (a*a) + x[1]*x[1] + x[2]*x[2];
+
+    value = 2.0 * x[1]*x[2] * sin( time() ) / sqrt(q);
+  }
+
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const
+  {
+    // set to alpha * id
+    D = 0;
+    for( int i=0; i<D.rows; ++i )
+      D[ i ][ i ] = alpha();
+  }
+
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    // set to zero
+    b = 0;
+  }
+
+  //! mass coefficient (default = 0)
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    m = RangeType(0);
+  }
+
+  //! coefficient of time derivative
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = alpha() * RangeType(1);
+  }
+
+  //! robin coefficient
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = 0;
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * x[1] * x[2];
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret[0][0] = 0.0;
+    ret[0][1] = sin( time() ) * x[2];
+    ret[0][2] = sin( time() ) * x[1];
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+
+  // coupling data
+  RangeFieldType alpha() const { return alpha_; }
+  RangeFieldType beta() const { return beta_; }
+
+private:
+  const DeformationType &deformation_;
+  const RangeFieldType alpha_;
+  const RangeFieldType beta_;
+};
+
+template <class FunctionSpace, class DeformationType>
+class SurfaceDecoupledProblem : public TemporalProblemInterface < FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeFieldType       RangeFieldType;
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  SurfaceDecoupledProblem( const Dune::Fem::TimeProviderBase &timeProvider,
+		      const DeformationType& deformation )
+    : BaseType( timeProvider ),
+      deformation_( deformation ),
+      alpha_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.alpha", 1.0 ) ),
+      beta_( Dune::Fem::Parameter::getValue< RangeFieldType >( "coupled.beta", 1.0 ) )
+  {
+    assert( std::abs( alpha_ - 1.0 ) < 1.0e-10 );
+    assert( std::abs( beta_ - 1.0 ) < 1.0e-10 );
+  }
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    // define evolution of surface
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double apt = 0.25 * cos( time() );
+
+    // calculated surface parameters
+    const double divGammaV = 0.5 * at * apt * ( x[1]*x[1] + x[2]*x[2] ) / ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) );
+    const double N1 = 1/at * x[0] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
+    const double N2 = x[1] / sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] );
+    const double H = ( 2.0 * x[0] * x[0] + at * ( 1 + at ) * ( x[1]*x[1] + x[2]*x[2] ) )
+      / ( sqrt( x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2] ) * ( x[0]*x[0] + at*at * ( x[1]*x[1] + x[2]*x[2] ) ) );
+
+
+    // calculate solution and derivatives
+    const double ux = sin( time() ) * x[0] * x[1];
+    const double mdux = ( cos( time() ) + 0.5 * sin( time() ) * apt / at ) * x[0] * x[1];
+    const double mlapux = sin( time() ) * (  2.0 * N1 * N2 + H * ( x[1] * N1 + x[0] * N2 ) );
+
+    // construct solution
+    phi = mdux + divGammaV * ux + mlapux;
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    value = RangeType(0);
+  }
+
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const
+  {
+    // set to beta * id
+    D = 0;
+    for( int i=0; i<D.rows; ++i )
+      D[ i ][ i ] = beta();
+  }
+
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    // set to zero
+    b = 0;
+  }
+
+  //! mass coefficient (default = 0)
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    m = 0;
+  }
+
+  //! coefficient of time derivative
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = beta() * RangeType(1);
+  }
+
+  virtual void a(const DomainType& x, RangeType &a) const
+  {
+    a = RangeType(0);
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * x[0] * x[1];
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    // helper variables
+    const double s = sin( time() );
+    const double f1 = std::sqrt( x[1]*x[1] + x[2]*x[2] + 16.0 * x[0]*x[0] / Power( 4.0 + s, 2 ) );
+    const double fact = s * ( 1.0 + 2.0 / f1 );
+
+    JacobianRangeType grad;
+    grad[ 0 ][ 0 ] = 0.0;
+    grad[ 0 ][ 1 ] = fact * x[2];
+    grad[ 0 ][ 2 ] = fact * x[1];
+
+    const double at = 1.0 + 0.25 * sin( time() );
+    DomainType nu;
+    nu[ 0 ] = 2.0 * x[ 0 ] / at;
+    nu[ 1 ] = 2.0 * x[ 1 ];
+    nu[ 2 ] = 2.0 * x[ 2 ];
+    nu /= nu.two_norm();
+
+    double dot = 0;
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	dot += nu[ i ] * grad[ 0 ][ i ];
+      }
+
+    for( unsigned int i = 0; i < nu.size(); ++i )
+      {
+	ret[ 0 ][ i ] = grad[ 0 ][ i ] - dot * nu[ i ];
+      }
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+
+  // coupling data
+  RangeFieldType alpha() const { return alpha_; }
+  RangeFieldType beta() const { return beta_; }
+
+private:
+  const DeformationType deformation_;
+  const RangeFieldType alpha_;
+  const RangeFieldType beta_;
 };
 
 #endif // #ifndef POISSON_HH
