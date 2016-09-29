@@ -154,29 +154,24 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   using ExchangeProblemType = typename SurfaceHeatModelType :: ProblemType;
   ExchangeProblemType* exchangeProblemPtr = 0;
 
-  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic", "coupled_stationary",
-  "coupled_decoupled" };
+  const std::string problemNames [] = { "coupled_stationary", "coupled_heat",
+					"coupled_decoupled" };
   const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
   switch( problemNumber )
     {
     case 0:
-      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
-      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
-      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
-      break;
-    case 1:
-      bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
-      surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
-      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
-      break;
-    case 2:
       bulkProblemPtr = new BulkStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       surfaceProblemPtr = new SurfaceStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
       break;
-    case 3:
-      bulkProblemPtr = new BulkDecoupledProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
-      surfaceProblemPtr = new SurfaceDecoupledProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+    case  1:
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
+    case 2:
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation, false );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation, false );
       exchangeProblemPtr = new NoExchangeHeatProblem< FunctionSpaceType >( timeProvider );
       break;
     default:
