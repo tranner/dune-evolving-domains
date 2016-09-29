@@ -108,7 +108,6 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   // create time provider
   Dune::Fem::GridTimeProvider< HBulkGridType > timeProvider( coupledGrid.bulkGrid() );
 
-#if DEFORMATION
   // create host grid part consisting of leaf level elements
   typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkHostGridPartType;
   BulkHostGridPartType bulkHostGridPart( coupledGrid.bulkGrid() );
@@ -142,13 +141,6 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 
   typedef CoupledGeoGridPart< CoupledGridType, BulkGridPartType, SurfaceGridPartType > CoupledGeoGridPartType;
   CoupledGeoGridPartType coupledGeoGridPart( coupledGrid, bulkGridPart, surfaceGridPart );
-#else
-  // create host grid part consisting of leaf level elements
-  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkGridPartType;
-  BulkGridPartType bulkGridPart( coupledGrid.bulkGrid() );
-  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
-  SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
-#endif
 
   // type of the mathematical model used
   using BulkHeatModelType = HeatModel< FunctionSpaceType, BulkGridPartType >;
@@ -250,6 +242,11 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   surfaceDataOutput.write( timeProvider );
   scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider, true );
 
+  // set times
+  deformation.setTime( timeProvider.time() );
+  bulkDiscreteDeformation.interpolate();
+  surfaceDiscreteDeformation.interpolate();
+
   // time loop, increment with fixed time step
   for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )
   //! [time loop]
@@ -259,6 +256,8 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 
     //! [Set the new time to move to new surface]
     deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    bulkDiscreteDeformation.interpolate();
+    surfaceDiscreteDeformation.interpolate();
 
     // solve once - but now we need to reassmble
     scheme.solve(true);
