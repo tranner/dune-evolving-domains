@@ -350,4 +350,222 @@ public:
   }
 };
 
+template <class FunctionSpace>
+class BulkHeatProblem : public TemporalProblemInterface < FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  BulkHeatProblem( const Dune::Fem::TimeProviderBase &timeProvider )
+    : BaseType( timeProvider )
+  {}
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    // define evolution of bulk
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double apt = 0.25 * cos( time() );
+    const double t = time();
+
+    phi = (sin(M_PI*x[1])*(2*at*(cos(t) + 2*Power(M_PI,2)*sin(t))*sin(M_PI*x[0]) +
+			 sin(t)*(M_PI*cos(M_PI*x[0])*x[0] + sin(M_PI*x[0]))*apt))/(2.*at);
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    // define evolution of bulk
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double t = time();
+
+    value = (M_PI*sin(t)*(at*cos(M_PI*x[1])*x[1]*sin(M_PI*x[0]) + cos(M_PI*x[0])*x[0]*sin(M_PI*x[1])))/
+      (at*sqrt(Power(x[0],2)/Power(at,2) + Power(x[1],2) + Power(x[2],2)));
+  }
+
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const
+  {
+    // set to identity by default
+    D = 0;
+    for( int i=0; i<D.rows; ++i )
+      D[ i ][ i ] = 1;
+  }
+
+  //! advection coefficient (default = 0)
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    // set to zero by default
+    b = 0;
+  }
+
+  //! mass coefficient (default = 0)
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    m = RangeType(0);
+  }
+
+  //! capacity coefficient (default = 1)
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = RangeType(1);
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * sin( M_PI * x[0] ) * sin( M_PI * x[1] );
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret[ 0 ][ 0 ] = sin( time() ) * M_PI * cos( M_PI * x[0] ) * sin( M_PI * x[1] );
+    ret[ 0 ][ 1 ] = sin( time() ) * sin( M_PI * x[0] ) * M_PI * cos( M_PI * x[1] );
+    ret[ 0 ][ 2 ] = 0.0;
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+};
+
+template <class FunctionSpace>
+class BulkParabolicProblem : public TemporalProblemInterface < FunctionSpace >
+{
+  typedef TemporalProblemInterface < FunctionSpace >  BaseType;
+public:
+  typedef typename BaseType :: RangeType            RangeType;
+  typedef typename BaseType :: DomainType           DomainType;
+  typedef typename BaseType :: JacobianRangeType    JacobianRangeType;
+  typedef typename BaseType :: DiffusionTensorType  DiffusionTensorType;
+  typedef typename BaseType :: AdvectionVectorType  AdvectionVectorType;
+
+  enum { dimRange  = BaseType :: dimRange };
+  enum { dimDomain = BaseType :: dimDomain };
+
+  // get time function from base class
+  using BaseType :: time ;
+  using BaseType :: deltaT ;
+
+  BulkParabolicProblem( const Dune::Fem::TimeProviderBase &timeProvider )
+    : BaseType( timeProvider )
+  {}
+
+  double Sin(const double a) const { return sin(a); }
+  double Cos(const double a) const { return cos(a); }
+  double Sqrt( const double a ) const { return sqrt(a); }
+
+  //! the right hand side data (default = 0)
+  virtual void f(const DomainType& x,
+		 RangeType& phi) const
+  {
+    const double t = time();
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double apt = 0.25 * cos( time() );
+
+    phi = (4*Power(M_PI,2)*Cos(M_PI*x[0])*Cos(M_PI*x[1])*Power(x[0],2)*Sin(t) +
+     (M_PI*Cos(M_PI*x[1])*x[0]*Sin(t)*Sin(M_PI*x[0])*(4*at - apt))/
+      at + (2*at*(Cos(t)*Cos(M_PI*x[0])*Cos(M_PI*x[1]) +
+           Sin(t)*(M_PI*Cos(M_PI*x[1])*Sin(M_PI*x[0]) +
+              Cos(M_PI*x[0])*(Cos(M_PI*x[1])*(2*Power(M_PI,2) + Cos(x[0]*x[1])) +
+                 2*M_PI*Sin(M_PI*x[1])))) +
+	      Cos(M_PI*x[0])*Cos(M_PI*x[1])*Sin(t)*apt)/at)/2;
+  }
+
+  virtual void boundaryRhs( const DomainType& x,
+			    RangeType& value ) const
+  {
+    const double t = time();
+    const double at = 1.0 + 0.25 * sin( time() );
+    const double q = x[0]*x[0] / (at*at) + x[1]*x[1] + x[2]*x[2];
+
+    value = -((Sin(t)*(M_PI*Cos(M_PI*x[1])*Power(x[0],3)*Sin(M_PI*x[0]) + 
+         Cos(M_PI*x[1])*x[0]*(-Cos(M_PI*x[0]) + M_PI*Sin(M_PI*x[0])) + 
+         M_PI*at*Cos(M_PI*x[0])*Power(x[0],2)*x[1]*Sin(M_PI*x[1]) + 
+		       at*Cos(M_PI*x[0])*x[1]*(-2*Cos(M_PI*x[1]) + M_PI*Sin(M_PI*x[1]))))/(Sqrt(q)*at));
+  }
+
+  //! diffusion coefficient (default = Id)
+  virtual void D(const DomainType& x, DiffusionTensorType& D ) const
+  {
+    // set to identity by default
+    D = 0;
+    for( int i=0; i<D.rows; ++i )
+      D[ i ][ i ] = 1;
+    D *= 1 + x[0]*x[0];
+  }
+
+  //! advection coefficient (default = 0)
+  virtual void b(const DomainType& x, AdvectionVectorType& b ) const
+  {
+    b[0] = 1;
+    b[1] = 2;
+    b[2] = 0;
+  }
+
+  //! mass coefficient (default = 0)
+  virtual void m(const DomainType& x, RangeType &m) const
+  {
+    m = cos( x[0]*x[1] );
+  }
+
+  //! capacity coefficient (default = 1)
+  virtual void d(const DomainType& x, RangeType &d) const
+  {
+    d = RangeType(1);
+  }
+
+  //! the exact solution
+  virtual void u(const DomainType& x,
+		 RangeType& phi) const
+  {
+    phi = sin( time() ) * cos( M_PI * x[0] ) * cos( M_PI * x[1] );
+  }
+
+  //! the jacobian of the exact solution
+  virtual void uJacobian(const DomainType& x,
+			 JacobianRangeType& ret) const
+  {
+    ret[ 0 ][ 0 ] = -sin( time() ) * M_PI * sin( M_PI * x[0] ) * cos( M_PI * x[1] );
+    ret[ 0 ][ 1 ] = -sin( time() ) * cos( M_PI * x[0] ) * M_PI * sin( M_PI * x[1] );
+    ret[ 0 ][ 2 ] = 0.0;
+  }
+
+  //! return true if given point belongs to the Dirichlet boundary (default is true)
+  virtual bool isDirichletPoint( const DomainType& x ) const
+  {
+    return false ;
+  }
+
+  //! return true if given point belongs to the Neumann boundary (default is false)
+  virtual bool isNeumannPoint( const DomainType& x ) const
+  {
+    return true ;
+  }
+};
+
 #endif // #ifndef POISSON_HH

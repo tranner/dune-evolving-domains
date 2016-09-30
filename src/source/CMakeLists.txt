@@ -16,6 +16,10 @@ add_dune_alberta_flags(main-surface-${POLORDER} GRIDDIM ${SURFACE_GRIDDIM} WORLD
 target_link_dune_default_libraries( main-surface-${POLORDER} )
 target_compile_definitions( main-surface-${POLORDER} PRIVATE ${GRIDTYPE};GRIDDIM=${SURFACE_GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART};FEMTIMER=${FEMTIMER} ) )
 
+add_executable(main-bulk-${POLORDER} main-surface.cc)
+add_dune_alberta_flags(main-bulk-${POLORDER} GRIDDIM ${GRIDDIM} WORLDDIM ${WORLDDIM})
+target_link_dune_default_libraries( main-bulk-${POLORDER} )
+target_compile_definitions( main-bulk-${POLORDER} PRIVATE ${GRIDTYPE};GRIDDIM=${GRIDDIM};WORLDDIM=${WORLDDIM};WANT_ISTL=${WANT_ISTL};POLORDER=${POLORDER};USE_OLD_GRIDPART=${USE_OLD_GRIDPART};FEMTIMER=${FEMTIMER} )
 
 add_executable(main-coupled-${POLORDER} main-coupled.cc)
 set(BULK_GRIDDIM ${GRIDDIM})
