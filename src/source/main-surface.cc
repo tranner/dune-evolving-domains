@@ -96,7 +96,11 @@ struct BoundaryProjection
 
   bool onBoundary( const DomainType& x )
   {
+#if GRIDDIM == WORLDDIM
+    return std::abs( x.two_norm() - 1.0 ) < 1.0e-12;
+#else
     return true;
+#endif
   }
 };
 
@@ -150,7 +154,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   DeformationType deformation;
 
   typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
-					  HostGridPartType, 1, POLORDER > DiscreteDeformationCoordHolderType;
+					  HostGridPartType, WORLDDIM - GRIDDIM, POLORDER > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
   DiscreteDeformationCoordHolderType discreteDeformation( deformation, boundaryProjection, hostGridPart );
 
@@ -164,6 +168,22 @@ void algorithm ( HGridType &grid, int step, const int eocId )
 
   // choose problem
   ProblemType* problemPtr = 0;
+#if GRIDDIM == WORLDDIM
+  const std::string problemNames [] = { "bulk_heat", "bulk_parabolic" };
+  const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "heat.problem", problemNames );
+  switch( problemNumber )
+    {
+    case 0:
+      problemPtr = new BulkHeatProblem< FunctionSpaceType > ( timeProvider );
+      break;
+    case 1:
+      problemPtr = new BulkParabolicProblem< FunctionSpaceType > ( timeProvider );
+      break;
+
+    default:
+      std::cerr << "unrecognised problem name" << std::endl;
+    }
+#else
   const std::string problemNames [] = { "surface_heat", "surface_parabolic" };
   const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "heat.problem", problemNames );
   switch( problemNumber )
@@ -178,6 +198,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
     default:
       std::cerr << "unrecognised problem name" << std::endl;
     }
+#endif
 
   // recover problem
   assert( problemPtr );
@@ -210,6 +231,8 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   //! [time loop]
   // initialize with fixed time step
   timeProvider.init( timeStep ) ;
+
+  discreteDeformation.interpolate();
 
   // initialize scheme and output initial data
   scheme.initialize();
@@ -282,8 +305,7 @@ try
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
-  typedef Dune :: AlbertaGrid< 2, 3 > HGridType;
-  static_assert( HGridType :: dimension == HGridType :: dimensionworld - 1, "this code is written with the assumption grid dim = world dim -1" );
+  typedef Dune :: AlbertaGrid< GRIDDIM, WORLDDIM > HGridType;
 
   // create grid from DGF file
   const std::string gridkey = Dune::Fem::IOInterface::defaultGridKey( HGridType::dimension );

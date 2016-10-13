@@ -108,7 +108,6 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   // create time provider
   Dune::Fem::GridTimeProvider< HBulkGridType > timeProvider( coupledGrid.bulkGrid() );
 
-#if DEFORMATION
   // create host grid part consisting of leaf level elements
   typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkHostGridPartType;
   BulkHostGridPartType bulkHostGridPart( coupledGrid.bulkGrid() );
@@ -142,13 +141,6 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 
   typedef CoupledGeoGridPart< CoupledGridType, BulkGridPartType, SurfaceGridPartType > CoupledGeoGridPartType;
   CoupledGeoGridPartType coupledGeoGridPart( coupledGrid, bulkGridPart, surfaceGridPart );
-#else
-  // create host grid part consisting of leaf level elements
-  typedef Dune::Fem::AdaptiveLeafGridPart< HBulkGridType, Dune::InteriorBorder_Partition > BulkGridPartType;
-  BulkGridPartType bulkGridPart( coupledGrid.bulkGrid() );
-  typedef Dune::Fem::AdaptiveLeafGridPart< HSurfaceGridType, Dune::InteriorBorder_Partition > SurfaceGridPartType;
-  SurfaceGridPartType surfaceGridPart( coupledGrid.surfaceGrid() );
-#endif
 
   // type of the mathematical model used
   using BulkHeatModelType = HeatModel< FunctionSpaceType, BulkGridPartType >;
@@ -159,22 +151,29 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   BulkProblemType* bulkProblemPtr = 0;
   using SurfaceProblemType = typename SurfaceHeatModelType :: ProblemType;
   SurfaceProblemType* surfaceProblemPtr = 0;
+  using ExchangeProblemType = typename SurfaceHeatModelType :: ProblemType;
+  ExchangeProblemType* exchangeProblemPtr = 0;
 
-  const std::string problemNames [] = { "coupled_heat", "coupled_parabolic", "coupled_stationary" };
+  const std::string problemNames [] = { "coupled_stationary", "coupled_heat",
+					"coupled_decoupled" };
   const int problemNumber = Dune :: Fem :: Parameter :: getEnum( "coupled.problem", problemNames );
   switch( problemNumber )
     {
     case 0:
-      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
-      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
-      break;
-    case 1:
-      bulkProblemPtr = new BulkParabolicProblem< FunctionSpaceType >( timeProvider );
-      surfaceProblemPtr = new SurfaceParabolicProblem< FunctionSpaceType >( timeProvider );
-      break;
-    case 2:
       bulkProblemPtr = new BulkStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
       surfaceProblemPtr = new SurfaceStationaryProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
+    case  1:
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation );
+      exchangeProblemPtr = new ExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
+    case 2:
+      bulkProblemPtr = new BulkHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation, false );
+      surfaceProblemPtr = new SurfaceHeatProblem< FunctionSpaceType, DeformationType >( timeProvider, deformation, false );
+      exchangeProblemPtr = new NoExchangeHeatProblem< FunctionSpaceType >( timeProvider );
+      break;
     default:
       std::cerr << "unrecognised problem name" << std::endl;
     }
@@ -182,10 +181,10 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   // recover problems
   assert( bulkProblemPtr );
   assert( surfaceProblemPtr );
+  assert( exchangeProblemPtr );
   BulkProblemType& bulkProblem = *bulkProblemPtr;
   SurfaceProblemType& surfaceProblem = *surfaceProblemPtr;
-  typedef ExchangeHeatProblem< FunctionSpaceType > ExchangeProblemType;
-  ExchangeProblemType exchangeProblem( timeProvider );
+  ExchangeProblemType& exchangeProblem = *exchangeProblemPtr;
 
   BulkHeatModelType bulkImplicitModel( bulkProblem, bulkGridPart, true );
   BulkHeatModelType bulkExplicitModel( bulkProblem, bulkGridPart, false );
@@ -238,6 +237,11 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
   surfaceDataOutput.write( timeProvider );
   scheme.closeTimestep( bulkGridExactSolution, surfaceGridExactSolution, timeProvider, true );
 
+  // set times
+  deformation.setTime( timeProvider.time() );
+  bulkDiscreteDeformation.interpolate();
+  surfaceDiscreteDeformation.interpolate();
+
   // time loop, increment with fixed time step
   for( ; timeProvider.time() < endTime; timeProvider.next( timeStep ) )
   //! [time loop]
@@ -247,6 +251,8 @@ void algorithm ( CoupledGridType &coupledGrid, int step, const int eocId )
 
     //! [Set the new time to move to new surface]
     deformation.setTime( timeProvider.time() + timeProvider.deltaT() );
+    bulkDiscreteDeformation.interpolate();
+    surfaceDiscreteDeformation.interpolate();
 
     // solve once - but now we need to reassmble
     scheme.solve(true);
