@@ -154,7 +154,7 @@ void algorithm ( HGridType &grid, int step, const int eocId )
   DeformationType deformation;
 
   typedef DiscreteDeformationCoordHolder< DeformationType, BoundaryProjectionType,
-					  HostGridPartType, 1, POLORDER > DiscreteDeformationCoordHolderType;
+					  HostGridPartType, WORLDDIM - GRIDDIM, POLORDER > DiscreteDeformationCoordHolderType;
   typedef typename DiscreteDeformationCoordHolderType :: DiscreteFunctionType CoordinateFunctionType;
   DiscreteDeformationCoordHolderType discreteDeformation( deformation, boundaryProjection, hostGridPart );
 
