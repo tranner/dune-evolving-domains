@@ -235,7 +235,7 @@ try
   const int eocId = Dune::Fem::FemEoc::addEntry( femEocHeaders );
 
   // type of hierarchical grid
-  typedef Dune :: AlbertaGrid< 2, 3 > HGridType;
+  using HGridType = Dune :: GridSelector :: GridType;
   static_assert( HGridType :: dimension == HGridType :: dimensionworld - 1, "this code is written with the assumption grid dim = world dim -1" );
 
   // create grid from DGF file
