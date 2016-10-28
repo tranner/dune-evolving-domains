@@ -256,7 +256,8 @@ public:
 
   void printTimers() const
   {
-    Dune::FemTimer::print( std::cout, "Timing data" );
+    if( Dune::Fem::MPIManager::rank() == 0 )
+      Dune::FemTimer::print( std::cout, "Timing data" );
     Dune::FemTimer::removeFrom( rhsIdx_ );
     Dune::FemTimer::removeFrom( matrixIdx_ );
     Dune::FemTimer::removeFrom( solverIdx_ );

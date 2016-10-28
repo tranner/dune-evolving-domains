@@ -57,12 +57,13 @@ struct ErrorOutput
       maxh_( 0.0 ),
       maxTau_( 0.0 )
   {
-    init( parameter );
+    if( Dune::Fem::MPIManager::rank() == 0 )
+      init( parameter );
   }
 
   ~ErrorOutput()
   {
-    if( file_ )
+    if( file_ and Dune::Fem::MPIManager::rank() == 0 )
       {
         file_ << "# h: " << maxh_ << std::endl;
         file_ << "# tau: " << maxTau_ << std::endl;
@@ -72,10 +73,11 @@ struct ErrorOutput
 
   void write( const double l2Error, const double h1Error )
   {
-    if( file_ )
+    if( file_ and Dune::Fem::MPIManager::rank() == 0 )
       file_ << tp_.time() << "  " << l2Error << "  " << h1Error << std::endl;
 
-    computeMeshSize();
+    if( Dune::Fem::MPIManager::rank() == 0 )
+      computeMeshSize();
   }
 
 protected:
